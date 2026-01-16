@@ -1,0 +1,34 @@
+# 临时文件夹
+temp/
+tmp/
+
+# Python 编译文件与环境
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# Streamlit 配置与缓存
+.streamlit/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 本地日志与凭据
+*.log
+.env
+auth.json
+# 忽略模型响应记录
+model_responses.txt
