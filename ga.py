@@ -298,25 +298,21 @@ class GenericAgentHandler(BaseHandler):
     
     def do_file_write(self, args, response):
         '''用于对整个文件的大量处理，精细修改要用file_patch。
+        需要将要写入的内容放在<file_content>标签内，或者放在代码块中。
         '''
         path = self._get_abs_path(args.get("path", ""))
         mode = args.get("mode", "overwrite") 
         action_str = "Appending to" if mode == "append" else "Writing"
         yield f"\n[Action] {action_str} file: {os.path.basename(path)}\n"
 
-        def extract_intended_block(content):
-            start_marker = "```"
-            first_idx = content.find(start_marker)
-            last_idx = content.rfind(start_marker)
-            if first_idx == -1 or last_idx == -1 or first_idx == last_idx:
-                return None
-            header_end = content.find("\n", first_idx)
-            if header_end == -1 or header_end > last_idx:
-                return None
-            actual_content = content[header_end + 1 : last_idx].strip()
-            return actual_content
+        def extract_robust_content(text):
+            tag = re.search(r"<file_content>(.*?)</file_content>", text, re.DOTALL)
+            if tag: return tag.group(1).strip()
+            s, e = text.find("```"), text.rfind("```")
+            if -1 < s < e: return text[text.find("\n", s)+1 : e].strip()
+            return None
         
-        blocks = extract_intended_block(response.content)
+        blocks = extract_robust_content(response.content)
         if not blocks:
             yield f"[Status] ❌ 失败: 未在回复中找到代码块内容\n"
             return StepOutcome({"status": "error", "msg": "No code block found in response"}, next_prompt="\n")
@@ -327,8 +323,8 @@ class GenericAgentHandler(BaseHandler):
             with open(path, write_mode, encoding="utf-8") as f:
                 f.write(final_content)
             yield f"[Status] ✅ {mode.capitalize()} 成功 ({len(new_content)} bytes)\n"
-            return StepOutcome({"status": "success"}, 
-                               next_prompt=f"\n提醒: <user_input>{self.user_input}</user_input>请继续执行下一步。\n")
+            return StepOutcome({"status": "success", 'writed_bytes': len(new_content)}, 
+                               next_prompt=self._get_anchor_prompt())
         except Exception as e:
             yield f"[Status] ❌ 写入异常: {str(e)}\n"
             return StepOutcome({"status": "error", "msg": str(e)}, next_prompt="\n")
