@@ -32,3 +32,5 @@ Thumbs.db
 auth.json
 # 忽略模型响应记录
 model_responses.txt
+
+*.zip
