@@ -24,7 +24,7 @@ def init():
 
 llmclient = init()
 
-from ga import GenericAgentHandler
+from ga import GenericAgentHandler, smart_format
 
 def get_system_prompt():
     with open('sys_prompt.txt', 'r', encoding='utf-8') as f:
@@ -56,18 +56,21 @@ def refine_user_goal(raw_query, last_goal):
         return raw_query
 
 def agent_backend_stream(raw_query):
-    final_goal = refine_user_goal(raw_query, st.session_state.last_goal)
-    
-    if final_goal != raw_query:
-        yield f"[Goal Refined] {final_goal}\n"
+    #final_goal = refine_user_goal(raw_query, st.session_state.last_goal)
+    #if final_goal != raw_query: yield f"[Goal Refined] {final_goal}\n"
+
+    history = st.session_state.get("last_history", [])
+    hquery = smart_format(raw_query.replace('\n', ' '), max_str_len=100)
+    history.append(f"[USER]: {hquery}")
 
     sys_prompt = get_system_prompt()
-    handler = GenericAgentHandler(None, final_goal, './temp')
+    handler = GenericAgentHandler(None, history, './temp')
     llmclient.last_tools = ''   
     ret = yield from agent_runner_loop(llmclient,
         sys_prompt, raw_query, handler,
         TOOLS_SCHEMA, max_turns=25)
-    st.session_state.last_goal = final_goal
+    #st.session_state.last_goal = final_goal
+    st.session_state.last_history = handler.history_info
     return ret
 
 st.title("🖥️ Cowork")

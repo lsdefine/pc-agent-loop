@@ -816,6 +816,8 @@ def get_main_block(driver):
     if type(html) is not str:  
         time.sleep(2)
         html = driver.execute_js(js_optHTML)  
+    else:
+        print('[STRANGE TYPE]', str(html)[:500])
     return html
 
 

@@ -62,10 +62,14 @@ class TMWebDriver:
                 print(f"Browser http connected: {session.url} (Session: {session_id})")  
                 self.sessions[session_id] = session
             session = self.sessions[session_id]
+            session.disconnect_at = None
             if session.type == 'http': msgQ = session.http_queue
             else: return json.dumps({"id": "", "ret": "use ws"})
-            try: return msgQ.get(timeout=5)
-            except queue.Empty: return json.dumps({"id": "", "ret": "next long-poll"})
+            start_time = time.time()
+            while time.time() - start_time < 5:
+                try: return msgQ.get(timeout=0.2)
+                except queue.Empty: continue
+            return json.dumps({"id": "", "ret": "next long-poll"})
 
         @app.route('/api/result', method=['GET','POST'])
         def result():
@@ -90,6 +94,7 @@ class TMWebDriver:
                 auto_switch_newtab = data.get('auto_switch_newtab', False)
                 try:
                     result = self.execute_js(code, timeout=timeout, session_id=session_id, auto_switch_newtab=auto_switch_newtab)
+                    print('remote', result)
                     newTabs = result.get('newTabs', []) if isinstance(result, dict) else []
                     return json.dumps({'result': result, 'newTabs': newTabs}, ensure_ascii=False)
                 except Exception as e:
@@ -100,7 +105,7 @@ class TMWebDriver:
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            bottle.run(app, host=self.host, port=self.port+1, server='tornado')
+            bottle.run(app, host=self.host, port=self.port+1, server='tornado', threads=20)
 
         http_thread = threading.Thread(target=run)  
         http_thread.daemon = True  
@@ -218,7 +223,7 @@ class TMWebDriver:
                 if hasjump and session.is_active():
                     if not self.is_remote and auto_switch_newtab: self.last_cmd_time = time.time()
                     return {"result": f"Session {session_id} reloaded.", "closed":1}
-            if time.time() - start_time > timeout:  
+            if time.time() - start_time > timeout + 10:  
                 if tp == 'ws':
                     return {"result": f"No response data in {timeout}s"}
                 elif tp == 'http':

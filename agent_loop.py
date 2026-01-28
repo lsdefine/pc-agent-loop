@@ -15,14 +15,14 @@ def try_call_generator(func, *args, **kwargs):
     return ret
 
 class BaseHandler:
-    def tool_before_callback(self, tool_name, args, content): pass
-    def tool_after_callback(self, tool_name, args, content): pass
+    def tool_before_callback(self, tool_name, args, response): pass
+    def tool_after_callback(self, tool_name, args, response, ret): pass
     def dispatch(self, tool_name, args, response):
         method_name = f"do_{tool_name}"
         if hasattr(self, method_name):
             _ = yield from try_call_generator(self.tool_before_callback, tool_name, args, response)
             ret = yield from try_call_generator(getattr(self, method_name), args, response)
-            _ = yield from try_call_generator(self.tool_after_callback, tool_name, args, response)
+            _ = yield from try_call_generator(self.tool_after_callback, tool_name, args, response, ret)
             return ret
         else:
             yield f"❌ 未知工具: {tool_name}\n"
@@ -48,6 +48,7 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
         response = client.chat(messages=messages, tools=tools_schema)
 
         if response.thinking: yield '<thinking>' + response.thinking + '</thinking>\n\n'
+        if '</summary>```'  in response.content: response.content = response.content.replace('</summary>```', '</summary> \n```')
         yield response.content + '\n\n'
 
         if not response.tool_calls:
