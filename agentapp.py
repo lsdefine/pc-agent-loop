@@ -73,7 +73,8 @@ def agent_backend_stream(raw_query):
     #if final_goal != raw_query: yield f"[Goal Refined] {final_goal}\n"
 
     history = st.session_state.get("last_history", [])
-    history.append(f"[USER]: {smart_format(raw_query.replace('\n', ' '))}")
+    rquery = smart_format(raw_query.replace('\n', ' '))
+    history.append(f"[USER]: {rquery}")
 
     sys_prompt = get_system_prompt()
     handler = GenericAgentHandler(None, history, './temp')
