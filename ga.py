@@ -16,16 +16,16 @@ def code_run(code: str, code_type: str = "python", timeout: int = 60, cwd: str =
     """
     preview = (code[:60].replace('\n', ' ') + '...') if len(code) > 60 else code.strip()
     yield f"[Action] Running {code_type} in {os.path.basename(cwd)}: {preview}\n"
-    cwd = cwd or os.getcwd()
+    cwd = cwd or os.getcwd(); tmp_path = None
     if code_type == "python":
         tmp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode='w', encoding='utf-8')
         tmp_file.write(code)
         tmp_path = tmp_file.name
         tmp_file.close()
-        cmd = ["python", "-u", tmp_path]   
-    elif code_type == "powershell":
-        cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", code]
-        tmp_path = None
+        cmd = ["python", "-X", "utf8", "-u", tmp_path]   
+    elif code_type in ["powershell", "bash"]:
+        if os.name == 'nt': cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", code]
+        else: cmd = ["bash", "-c", code]
     else:
         return {"status": "error", "msg": f"不支持的类型: {code_type}"}
     print("code run output:") 
@@ -398,7 +398,8 @@ class GenericAgentHandler(BaseHandler):
         next_prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实与用户偏好，更新至全局记忆。
 1. 严禁记录任何任务特定中间执行过程或临时变量经验，那是过程记忆不是全局记忆。
 2. 若无高价值新事实，那就不更新任何内容。
-3. 尽量先查看现有全局记忆形式，仿照形式且避免冗余，insight也要添加对全局记忆的短印象来提醒存在性。'''
+3. 尽量先查看现有全局记忆形式，仅作少量修改不要影响其余部分。insight也要同步更新全局记忆的短印象来提醒存在性。
+4. 优先使用file_read和file_patch来保证少量修改。'''
         yield "[Info] Start distilling good memory for long-term storage.\n"
         return StepOutcome({"status": "success"}, next_prompt=next_prompt)
 

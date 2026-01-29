@@ -94,7 +94,7 @@ class TMWebDriver:
                 auto_switch_newtab = data.get('auto_switch_newtab', False)
                 try:
                     result = self.execute_js(code, timeout=timeout, session_id=session_id, auto_switch_newtab=auto_switch_newtab)
-                    print('remote', result)
+                    print('[remote result]', str(result)[:500])
                     newTabs = result.get('newTabs', []) if isinstance(result, dict) else []
                     return json.dumps({'result': result, 'newTabs': newTabs}, ensure_ascii=False)
                 except Exception as e:
