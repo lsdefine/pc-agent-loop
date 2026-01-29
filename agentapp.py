@@ -32,14 +32,17 @@ def get_system_prompt():
     if not os.path.exists('memory/global_mem.txt'):
         with open('memory/global_mem.txt', 'w', encoding='utf-8') as f: f.write('')
     if not os.path.exists('memory/global_mem_insight.txt'):
-        with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f:
-            f.write('PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Code Root).')
+        with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f: f.write('')
     with open('sys_prompt.txt', 'r', encoding='utf-8') as f:
         prompt = f.read()
     try:
         with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: 
             insight = f.read()
-        prompt += f"\n\n[Global Memory Insight]\n{insight}"
+        prompt += f"\n\n[Global Memory Insight]\n"
+        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Your Code Root).\n'
+        prompt += 'MEM_RULE: Insight is the index of Facts. Sync Insight whenever Facts change. For details, read Facts.\n'
+        prompt += "EXT: ../memory/ may contain other task-specific memories.\n"
+        prompt += insight + "\n"
     except FileNotFoundError: pass
     return prompt
 
