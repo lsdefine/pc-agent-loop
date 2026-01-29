@@ -82,22 +82,22 @@ class ToolClient:
         return self._parse_mixed_response(raw_text)
 
     def _build_protocol_prompt(self, messages, tools):
-        system_content = next((m['content'] for m in messages if m['role'].lower() == 'system'), "你是一个智能助手。")
+        system_content = next((m['content'] for m in messages if m['role'].lower() == 'system'), "")
         history_msgs = [m for m in messages if m['role'].lower() != 'system']
         
         # 构造工具描述
         tool_instruction = ""
         if tools:
-            tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
+            tools_json = json.dumps(tools, ensure_ascii=False, separators=(',', ':'))
             tool_instruction = f"""
-### ⚡️ 交互协议 (必须严格遵守)
+### 交互协议 (必须严格遵守)
 请按照以下步骤思考并行动：
 1. **思考**: 在 `<thinking>` 标签中先进行思考，分析现状和策略。
 2. **总结**: 在 `<summary>` 中输出*极为简短*的高度概括的单行（<30字）物理快照，包括上次工具调用结果获取的新信息+本次工具调用意图和预期。此内容将进入长期工作记忆，记录关键信息，严禁输出无实际信息增量的描述。
 3. **行动**: 如果需要调用工具，请紧接着输出一个 **<tool_use>块**，然后结束，我会稍后给你返回<tool_result>块。
    格式: ```<tool_use>\n{{"function": "工具名", "arguments": {{参数}}}}\n</tool_use>\n```
 
-### 🛠️ 可用工具库
+### 可用工具库
 {tools_json}
 """
             if self.auto_save_tokens and self.last_tools == tools_json:
@@ -106,7 +106,9 @@ class ToolClient:
                 self.total_cd_tokens = 0
             self.last_tools = tools_json
             
-        prompt = f"=== SYSTEM ===\n{system_content}\n{tool_instruction}\n\n"
+        prompt = ""
+        if system_content: prompt += f"=== SYSTEM ===\n{system_content}\n"
+        prompt += f"{tool_instruction}\n\n"
         for m in history_msgs:
             role = "USER" if m['role'] == 'user' else "ASSISTANT"
             prompt += f"=== {role} ===\n{m['content']}\n\n"

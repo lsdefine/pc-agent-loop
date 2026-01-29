@@ -16,7 +16,7 @@ def code_run(code: str, code_type: str = "python", timeout: int = 60, cwd: str =
     """
     preview = (code[:60].replace('\n', ' ') + '...') if len(code) > 60 else code.strip()
     yield f"[Action] Running {code_type} in {os.path.basename(cwd)}: {preview}\n"
-    cwd = cwd or os.getcwd(); tmp_path = None
+    cwd = cwd or os.path.join(os.getcwd(), 'temp'); tmp_path = None
     if code_type == "python":
         tmp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode='w', encoding='utf-8')
         tmp_file.write(code)
@@ -211,7 +211,7 @@ def file_read(path, start=1, keyword=None, count=100, show_linenos=True):
                     before.append((i, l))
                 else: return f"Keyword '{keyword}' not found after line {start}."
             else: res = itertools.islice(stream, count)
-            return "\n".join(f"{i}|{l}" if show_linenos else l for i, l in res)
+            return "\n".join(f"{i}| {l}" if show_linenos else l for i, l in res)
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -264,7 +264,8 @@ class GenericAgentHandler(BaseHandler):
         # 提取最后一个代码块（通常是模型修正后的最终逻辑）
         code = matches[-1].strip()
         timeout = args.get("timeout", 60)
-        cwd = args.get("cwd", self.cwd)
+        raw_path = os.path.join(self.cwd, args.get("cwd", './'))
+        cwd = os.path.normpath(os.path.abspath(raw_path))
         result = yield from code_run(code, code_type, timeout, cwd)
         next_prompt = self._get_anchor_prompt()
         return StepOutcome(result, next_prompt=next_prompt)
