@@ -1,212 +1,68 @@
 [
-  {
-    "type": "function",
-    "function": {
-      "name": "code_run",
-      "description": "针对 Windows 优化的双模态代码执行器。优先使用 python 运行复杂逻辑，仅在必要系统操作时使用 powershell。注意：执行的代码必须以 ```python 或 ```powershell 代码块的形式包含在回复正文中。严禁在代码中硬编码大量数据，如有需要应通过文件读取。执行时间限制为 60s。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "python",
-              "powershell"
-            ],
-            "description": "执行环境类型，默认为 python。",
-            "default": "python"
-          },
-          "timeout": {
-            "type": "integer",
-            "description": "执行超时时间（秒），默认 60。",
-            "default": 60
-          },
-          "cwd": {
-            "type": "string",
-            "description": "工作目录，默认为当前工作目录。"
-          }
-        }
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "file_read",
-      "description": "读取文件内容。建议在修改文件前先读取，以确保获取最新的上下文和行号。支持分页读取，默认每次读取 100 行。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "description": "文件相对或绝对路径。"
-          },
-          "start": {
-            "type": "integer",
-            "description": "起始行号（从 1 开始）。",
-            "default": 1
-          },
-          "count": {
-            "type": "integer",
-            "description": "读取的行数。",
-            "default": 100
-          },
-          "show_linenos": {
-            "type": "boolean",
-            "description": "是否显示行号，建议开启以辅助 file_patch 定位。",
-            "default": true
-          }
-        },
-        "required": [
-          "path"
-        ]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "file_patch",
-      "description": "精细化局部文件修改。在文件中寻找唯一的 old_content 块并替换为 new_content。要求 old_content 必须在文件中唯一存在，且空格、缩进、换行必须与原文件完全一致。如果匹配失败，请使用 file_read 重新确认文件内容。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "description": "文件路径。"
-          },
-          "old_content": {
-            "type": "string",
-            "description": "文件中需要被替换的原始文本块（需确保唯一性）。"
-          },
-          "new_content": {
-            "type": "string",
-            "description": "替换后的新文本内容。"
-          }
-        },
-        "required": [
-          "path",
-          "old_content",
-          "new_content"
-        ]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "file_write",
-      "description": "用于文件的新建、全量覆盖或追加写入。对于精细的代码修改，应优先使用 file_patch。注意：要写入的内容必须放在回复正文的 <file_content> 标签或代码块中。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "description": "文件路径。"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "overwrite",
-              "append"
-            ],
-            "description": "写入模式：overwrite（覆盖，默认）或 append（追加）。",
-            "default": "overwrite"
-          }
-        },
-        "required": [
-          "path"
-        ]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "web_scan",
-      "description": "获取当前网页的清洗后内容，并列出所有已打开的标签页。支持切换标签页。在长页面中，可以使用 focus_item 进行语义过滤以提取关键信息。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "focus_item": {
-            "type": "string",
-            "description": "语义过滤指令，用于在长列表中优先保留与该关键词相关的项。"
-          },
-          "switch_tab_id": {
-            "type": "string",
-            "description": "可选的标签页 ID。如果提供，系统将在扫描前切换到该标签页。"
-          }
-        }
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "web_execute_js",
-      "description": "万能网页操控工具。通过执行 JavaScript 脚本实现对浏览器的完全控制（如点击、滚动、提取特定数据）。这是 Web 场景下的首选工具。执行结果可选择保存到本地文件进行后续分析。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "script": {
-            "type": "string",
-            "description": "要执行的 JavaScript 代码。"
-          },
-          "save_to_file": {
-            "type": "string",
-            "description": "可选。将 JS 执行结果（js_return）保存到的文件路径。注意：该功能不支持 await 等异步结果。"
-          }
-        },
-        "required": [
-          "script"
-        ]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "update_plan",
-      "description": "更新任务的宏观计划和当前战略重心。仅在初始拆解多步任务或发生重大方案调整时使用。禁止用于记录细微调试步骤或纠错。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "plan": {
-            "type": "string",
-            "description": "完整的宏观任务路线图。"
-          },
-          "focus": {
-            "type": "string",
-            "description": "当前阶段的工作重点。"
-          }
-        }
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "ask_user",
-      "description": "当需要用户决策、提供额外信息或遇到无法自动解决的阻碍时，调用此工具中断任务并提问。",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "question": {
-            "type": "string",
-            "description": "向用户提出的明确问题。"
-          },
-          "candidates": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "提供给用户的可选快捷选项列表。"
-          }
-        },
-        "required": [
-          "question"
-        ]
-      }
-    }
+  {"type": "function", "function": {
+    "name": "code_run",
+    "description": "针对 Windows 优化的双模态代码执行器。优先使用 python 运行复杂逻辑，仅在必要系统操作时使用 powershell。注意：执行的代码必须以 ```python 或 ```powershell 代码块的形式包含在回复正文中。严禁在代码中硬编码大量数据，如有需要应通过文件读取。执行时间限制为 60s。",
+    "parameters": {"type": "object", "properties": {
+      "type": {"type": "string", "enum": ["python", "powershell"], "description": "执行环境类型，默认为 python。", "default": "python"},
+      "timeout": {"type": "integer", "description": "执行超时时间（秒），默认 60。", "default": 60},
+      "cwd": {"type": "string", "description": "工作目录，默认为当前工作目录。"}}}
+  }},
+  {"type": "function", "function": {
+    "name": "file_read",
+    "description": "读取文件内容。建议在修改文件前先读取，以确保获取最新的上下文和行号。支持分页读取或关键字搜索。",
+    "parameters": {"type": "object", "properties": {
+      "path": {"type": "string", "description": "文件相对或绝对路径。"},
+      "start": {"type": "integer", "description": "起始行号（从 1 开始）。", "default": 1},
+      "count": {"type": "integer", "description": "读取的行数。", "default": 100},
+      "keyword": {"type": "string", "description": "可选搜索关键字。如果提供，将返回第一个匹配项（忽略大小写）及其周边的内容。"},
+      "show_linenos": {"type": "boolean", "description": "是否显示行号，建议开启以辅助 file_patch 定位。", "default": true}}, "required": ["path"]}
+  }},
+  {"type": "function", "function": {
+    "name": "file_patch",
+    "description": "精细化局部文件修改。在文件中寻找唯一的 old_content 块并替换为 new_content。要求 old_content 必须在文件中唯一存在，且空格、缩进、换行必须与原文件完全一致。如果匹配失败，请使用 file_read 重新确认文件内容。",
+    "parameters": {"type": "object", "properties": {
+      "path": {"type": "string", "description": "文件路径。"},
+      "old_content": {"type": "string", "description": "文件中需要被替换的原始文本块（需确保唯一性）。"},
+      "new_content": {"type": "string", "description": "替换后的新文本内容。"}}, "required": ["path", "old_content", "new_content"]}
+  }},
+  {"type": "function", "function": {
+    "name": "file_write",
+    "description": "用于文件的新建、全量覆盖或追加写入。对于精细的代码修改，应优先使用 file_patch。注意：要写入的内容必须放在回复正文的 <file_content> 标签或代码块中。",
+    "parameters": {"type": "object", "properties": {
+      "path": {"type": "string", "description": "文件路径。"},
+      "mode": {"type": "string", "enum": ["overwrite", "append"], "description": "写入模式：overwrite（覆盖，默认）或 append（追加）。", "default": "overwrite"}}, "required": ["path"]}
+  }},
+  {"type": "function", "function": {
+    "name": "web_scan",
+    "description": "获取当前网页的清洗后内容，并列出所有已打开的标签页。支持切换标签页。在长页面中，可以使用 focus_item 进行语义过滤以提取关键信息。",
+    "parameters": {"type": "object", "properties": {
+      "focus_item": {"type": "string", "description": "语义过滤指令，用于在长列表中优先保留与该关键词相关的项。"},
+      "switch_tab_id": {"type": "string", "description": "可选的标签页 ID。如果提供，系统将在扫描前切换到该标签页。"}}}
+  }},
+  {"type": "function", "function": {
+    "name": "web_execute_js",
+    "description": "万能网页操控工具。通过执行 JavaScript 脚本实现对浏览器的完全控制（如点击、滚动、提取特定数据）。这是 Web 场景下的首选工具。执行结果可选择保存到本地文件进行后续分析。",
+    "parameters": {"type": "object", "properties": {
+      "script": {"type": "string", "description": "要执行的 JavaScript 代码。"},
+      "save_to_file": {"type": "string", "description": "可选。将 JS 执行结果（js_return）保存到的文件路径。注意：该功能不支持 await 等异步结果。"}}, "required": ["script"]}
+  }},
+  {"type": "function", "function": {
+    "name": "update_plan",
+    "description": "更新任务的宏观计划和当前战略重心。仅在初始拆解多步任务或发生重大方案调整时使用。禁止用于记录细微调试步骤或纠错。",
+    "parameters": {"type": "object", "properties": {
+      "plan": {"type": "string", "description": "完整的宏观任务路线图。"},
+      "focus": {"type": "string", "description": "当前阶段的工作重点。"}}}
+  }},
+  {"type": "function", "function": {
+    "name": "ask_user",
+    "description": "当需要用户决策、提供额外信息或遇到无法自动解决的阻碍时，调用此工具中断任务并提问。",
+    "parameters": {"type": "object", "properties": {
+      "question": {"type": "string", "description": "向用户提出的明确问题。"},
+      "candidates": {"type": "array", "items": {"type": "string"}, "description": "提供给用户的可选快捷选项列表。"}}, "required": ["question"]}
+  }},
+  {"type": "function", "function": {
+    "name": "distill_good_memory",
+    "description": "当模型认为当前任务执行完美，且有具有长期价值的环境事实或用户偏好需要提炼并存入全局记忆时，调用此工具。注意：此工具无参数，调用即代表触发记忆提炼流程。",
+    "parameters": {"type": "object", "properties": {}}}
   }
 ]

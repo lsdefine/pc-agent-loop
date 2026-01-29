@@ -1,6 +1,6 @@
 import sys, os, re, json, time, pyperclip, threading
 from pathlib import Path
-import tempfile, traceback, subprocess
+import tempfile, traceback, subprocess, itertools, collections
 if sys.stdout is None: sys.stdout = open(os.devnull, "w")
 if sys.stderr is None: sys.stderr = open(os.devnull, "w")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -193,14 +193,25 @@ def file_patch(path: str, old_content: str, new_content: str):
     except Exception as e:
         return {"status": "error", "msg": str(e)}
 
-def file_read(path, start=1, count=100, show_linenos=True):
+def file_read(path, start=1, keyword=None, count=100, show_linenos=True):
+    L_MAX = max(100, 1024000//count); TAG = " ... [TRUNCATED]"
     try:
         with open(path, 'r', encoding='utf-8', errors='replace') as f:
-            lines = f.readlines()
-        chunk = lines[start-1 : start-1+count]
-        if show_linenos: res = [f"{i+start}|{l[:200]}" for i, l in enumerate(chunk)]
-        else: res = [l for l in chunk]
-        return f"Total:{len(lines)} lines\n" + "".join(res)
+            stream = (
+                (i, (l[:L_MAX].rstrip() + TAG if len(l) > L_MAX else l.rstrip()))
+                for i, l in enumerate(f, 1)
+            )
+            stream = itertools.dropwhile(lambda x: x[0] < start, stream)
+            if keyword:
+                before = collections.deque(maxlen=count//3)
+                for i, l in stream:
+                    if keyword.lower() in l.lower():
+                        res = list(before) + [(i, l)] + list(itertools.islice(stream, count - len(before) - 1))
+                        break
+                    before.append((i, l))
+                else: return f"Keyword '{keyword}' not found after line {start}."
+            else: res = itertools.islice(stream, count)
+            return "\n".join(f"{i}|{l}" if show_linenos else l for i, l in res)
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -323,7 +334,7 @@ class GenericAgentHandler(BaseHandler):
         blocks = extract_robust_content(response.content)
         if not blocks:
             yield f"[Status] ❌ 失败: 未在回复中找到代码块内容\n"
-            return StepOutcome({"status": "error", "msg": "No code block found in response"}, next_prompt="\n")
+            return StepOutcome({"status": "error", "msg": "No content found, if you want a blank, you should use code_run"}, next_prompt="\n")
         new_content = blocks
         try:
             write_mode = 'a' if mode == "append" else 'w'
@@ -339,12 +350,15 @@ class GenericAgentHandler(BaseHandler):
             return StepOutcome({"status": "error", "msg": str(e)}, next_prompt="\n")
         
     def do_file_read(self, args, response):
+        '''读取文件内容。从第start行开始读取。如有keyword则返回第一个keyword(忽略大小写)周边内容'''
         path = self._get_abs_path(args.get("path", ""))
         yield f"\n[Action] Reading file: {path}\n"
         start = args.get("start", 1)
         count = args.get("count", 100)
+        keyword = args.get("keyword")
         show_linenos = args.get("show_linenos", True)
-        result = file_read(path, start, count, show_linenos)
+        result = file_read(path, start=start, keyword=keyword,
+                           count=count, show_linenos=show_linenos)
         next_prompt = self._get_anchor_prompt()
         return StepOutcome(result, next_prompt=next_prompt)
     
@@ -370,9 +384,24 @@ class GenericAgentHandler(BaseHandler):
     def do_no_tool(self, args, response):
         '''这是一个特殊工具，由引擎自主调用，不要包含在TOOLS_SCHEMA里。
         '''
+        if not response or not getattr(response, 'content', '').strip():
+            yield "[Warn] LLM returned an empty response. Retrying...\n"
+            next_prompt = "[System] 检测到空回复，请重新生成内容或调用工具。"
+            return StepOutcome({}, next_prompt=next_prompt, should_exit=False)
         yield "[Info] No tool called. Final response to user.\n"
         return StepOutcome(response, next_prompt=None, should_exit=True)
     
+    def do_distill_good_memory(self, args, response):
+        '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。
+        目前只支持全局记忆，暂不处理过程记忆或特定任务经验。
+        '''
+        next_prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实与用户偏好，更新至全局记忆。
+1. 严禁记录任何任务特定中间执行过程或临时变量经验，那是过程记忆不是全局记忆。
+2. 若无高价值新事实，那就不更新任何内容。
+3. 尽量先查看现有全局记忆形式，仿照形式且避免冗余，insight也要添加对全局记忆的短印象来提醒存在性。'''
+        yield "[Info] Start distilling good memory for long-term storage.\n"
+        return StepOutcome({"status": "success"}, next_prompt=next_prompt)
+
     def _get_anchor_prompt(self):
         h_str = "\n".join(self.history_info[-20:])
         prompt = f"\n### [WORKING MEMORY]\n<history>\n{h_str}\n</history>"

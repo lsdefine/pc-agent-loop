@@ -1,4 +1,4 @@
-import json
+import json, re
 from dataclasses import dataclass
 from typing import Any, Optional
 @dataclass
@@ -49,7 +49,10 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
 
         if response.thinking: yield '<thinking>' + response.thinking + '</thinking>\n\n'
         if '</summary>```'  in response.content: response.content = response.content.replace('</summary>```', '</summary> \n```')
-        yield response.content + '\n\n'
+        showcontent = response.content
+        if '</file_content>' in showcontent:
+            showcontent = re.sub(r'<file_content>\s*(.*?)\s*</file_content>', r'\n````<file_content>\n\1\n</file_content>````', showcontent, flags=re.DOTALL)
+        yield showcontent + '\n\n'
 
         if not response.tool_calls:
             tool_name, args = 'no_tool', {}

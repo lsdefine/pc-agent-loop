@@ -18,6 +18,7 @@ from agent_loop import agent_runner_loop, StepOutcome, BaseHandler
 
 @st.cache_resource
 def init():
+    if not os.path.exists('temp'): os.makedirs('temp')
     mainllm = SiderLLMSession(multiturns=6)
     llmclient = ToolClient(mainllm.ask, auto_save_tokens=True)
     return llmclient
@@ -27,8 +28,20 @@ llmclient = init()
 from ga import GenericAgentHandler, smart_format
 
 def get_system_prompt():
+    if not os.path.exists('memory'): os.makedirs('memory')
+    if not os.path.exists('memory/global_mem.txt'):
+        with open('memory/global_mem.txt', 'w', encoding='utf-8') as f: f.write('')
+    if not os.path.exists('memory/global_mem_insight.txt'):
+        with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f:
+            f.write('PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Code Root).')
     with open('sys_prompt.txt', 'r', encoding='utf-8') as f:
-        return f.read()
+        prompt = f.read()
+    try:
+        with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: 
+            insight = f.read()
+        prompt += f"\n\n[Global Memory Insight]\n{insight}"
+    except FileNotFoundError: pass
+    return prompt
 
 if "last_goal" not in st.session_state:
     st.session_state.last_goal = ""
@@ -60,8 +73,7 @@ def agent_backend_stream(raw_query):
     #if final_goal != raw_query: yield f"[Goal Refined] {final_goal}\n"
 
     history = st.session_state.get("last_history", [])
-    hquery = smart_format(raw_query.replace('\n', ' '), max_str_len=100)
-    history.append(f"[USER]: {hquery}")
+    history.append(f"[USER]: {smart_format(raw_query.replace('\n', ' '))}")
 
     sys_prompt = get_system_prompt()
     handler = GenericAgentHandler(None, history, './temp')

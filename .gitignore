@@ -34,3 +34,6 @@ auth.json
 model_responses.txt
 
 *.zip
+
+# 存储敏感信息的记忆文件夹
+memory/
