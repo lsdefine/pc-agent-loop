@@ -10,7 +10,6 @@ import time, json, re
 with open('tools_schema.json', 'r', encoding='utf-8') as f:
     TOOLS_SCHEMA = json.load(f)
 
-
 st.set_page_config(page_title="Cowork", layout="wide")
 
 from sidercall import SiderLLMSession, LLMSession, ToolClient
@@ -25,7 +24,7 @@ def init():
 
 llmclient = init()
 
-from ga import GenericAgentHandler, smart_format
+from ga import GenericAgentHandler, smart_format, get_global_memory
 
 def get_system_prompt():
     if not os.path.exists('memory'): os.makedirs('memory')
@@ -33,50 +32,16 @@ def get_system_prompt():
         with open('memory/global_mem.txt', 'w', encoding='utf-8') as f: f.write('')
     if not os.path.exists('memory/global_mem_insight.txt'):
         with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f: f.write('')
-    with open('sys_prompt.txt', 'r', encoding='utf-8') as f:
-        prompt = f.read()
-    try:
-        with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: 
-            insight = f.read()
-        prompt += f"\n\n[Global Memory Insight]\n"
-        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Your Code Root).\n'
-        prompt += 'MEM_RULE: Insight is the index of Facts. Sync Insight whenever Facts change. For details, read Facts.\n'
-        prompt += "EXT: ../memory/ may contain other task-specific memories.\n"
-        prompt += insight + "\n"
-    except FileNotFoundError: pass
+    with open('sys_prompt.txt', 'r', encoding='utf-8') as f: prompt = f.read()
+    prompt += get_global_memory()
     return prompt
 
 if "last_goal" not in st.session_state:
     st.session_state.last_goal = ""
 
-def refine_user_goal(raw_query, last_goal):
-    """通过 LLM 提炼用户真实意图"""
-    if not last_goal:
-        return raw_query
-
-    decide_prompt = f"""
-用户之前的目标是: "{last_goal}"
-用户现在输入了: "{raw_query}"
-
-请判断：
-1. 如果用户提供补充信息、或者是接续之前的任务，请输出合并后的【最终目标】。
-2. 如果用户只是指出之前做法有错而非变更目标，那么请输出原目标不做修改。
-3. 如果用户开启了一个完全不相关的新话题，请直接输出用户现在的输入内容。
-
-请直接输出目标描述，不要包含任何多余的文字、解释或标点。
-"""
-    try:
-        refined = llmclient.llm_func(decide_prompt).strip()
-        return refined if refined else raw_query
-    except:
-        return raw_query
-
 def agent_backend_stream(raw_query):
-    #final_goal = refine_user_goal(raw_query, st.session_state.last_goal)
-    #if final_goal != raw_query: yield f"[Goal Refined] {final_goal}\n"
-
     history = st.session_state.get("last_history", [])
-    rquery = smart_format(raw_query.replace('\n', ' '))
+    rquery = smart_format(raw_query.replace('\n', ' '), max_str_len=200)
     history.append(f"[USER]: {rquery}")
 
     sys_prompt = get_system_prompt()
@@ -85,7 +50,6 @@ def agent_backend_stream(raw_query):
     ret = yield from agent_runner_loop(llmclient,
         sys_prompt, raw_query, handler,
         TOOLS_SCHEMA, max_turns=25)
-    #st.session_state.last_goal = final_goal
     st.session_state.last_history = handler.history_info
     return ret
 

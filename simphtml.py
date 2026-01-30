@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 
-js_optHTML = '''function optHTML() {
+js_optHTML = r'''function optHTML() {
 function createEnhancedDOMCopy() {  
   const nodeInfo = new WeakMap();  
   const ignoreTags = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'META', 'LINK', 'COLGROUP', 'COL', 'TEMPLATE', 'PARAM', 'SOURCE'];  
@@ -237,7 +237,7 @@ optHTML()'''
 
 
 
-js_findMainList = '''function findMainList(startElement = null) {
+js_findMainList = r'''function findMainList(startElement = null) {
         const containerElement = startElement || document.body;  
         const rect = containerElement.getBoundingClientRect();  
         const centerX = startElement ? (rect.left + rect.width/2) : (window.innerWidth/2);  

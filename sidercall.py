@@ -11,41 +11,65 @@ class SiderLLMSession:
     def __init__(self, multiturns=6):
         self._core = Session(cookie=sider_cookie, proxies={'https':'127.0.0.1:2082'})   
     def ask(self, prompt, model="gemini-3.0-flash"):
-        if len(prompt) > 30000: prompt = prompt[-29500:]
+        if len(prompt) > 29000: 
+            print(f"[Warn] Prompt too long ({len(prompt)} chars), truncating.")
+            prompt = prompt[-29000:]
         return ''.join(self._core.chat(prompt, model))
   
 class LLMSession:
-    def __init__(self, api_key=capikey, api_base="http://113.45.39.247:3001/v1", multiturns=6):
+    def __init__(self, api_key=capikey, api_base="http://113.45.39.247:3001/v1", multiturns=6, context_win=32000):
         self.api_key = api_key
         self.api_base = api_base
+        self.raw_msgs = []
         self.messages = []
-        self.multiturns = multiturns
-        
-    def ask(self, prompt, model="openai/gpt-5.1"):
-        self.messages.append({"role": "user", "content": prompt})
-        if len(self.messages) > self.multiturns:
-            self.messages = self.messages[-self.multiturns:]
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        self.context_win = context_win
+
+    def raw_ask(self, messages, model, temperature=0.5):
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         try:
             response = requests.post(
-                f"{self.api_base}/chat/completions",
-                headers=headers,
-                json={
-                    "model": model, 
-                    "messages": self.messages, 
-                    "temperature": 0.5
-                },
-                timeout=60
-            )
+                f"{self.api_base}/chat/completions", headers=headers, timeout=60,
+                json={"model": model, "messages": messages, "temperature": temperature} )
             res_json = response.json()
             content = res_json["choices"][0]["message"]["content"]
-            self.messages.append({"role": "assistant", "content": content})
             return content
         except Exception as e:
             return f"Error: {str(e)}"
+        
+    def make_messages(self, raw_list, omit_images=True):
+        messages = []
+        for msg in raw_list:
+            if omit_images and msg['image']:
+                messages.append({"role": msg['role'], "content": "[Image omitted, if you needed it, ask me]\n" + msg['prompt']})
+            elif not omit_images and msg['image']:
+                messages.append({"role": msg['role'], "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{msg['image']}"}},
+                    {"type": "text", "text": msg['prompt']}   ]})
+            else:
+                messages.append({"role": msg['role'], "content": msg['prompt']})
+        return messages
+       
+    def summary_history(self, model):
+        keep = max(2, len(self.raw_msgs)//2)
+        old, self.raw_msgs = self.raw_msgs[:-keep], self.raw_msgs[-keep:]
+        if len(old) == 0: old = self.raw_msgs; self.raw_msgs = []
+        p = "Summarize prev summary and prev conversations into compact memory (facts/decisions/constraints/open questions). Do NOT restate long schemas. The new summary should less than 1000 tokens.\n"
+        messages = self.make_messages(old, omit_images=True)
+        messages += [{"role":"user", "content":p}]
+        self.summary = self.raw_ask(messages, model, temperature=0.1)
+        self.raw_msgs.insert(0, {"role":"system", "prompt":"Prev summary:\n"+self.summary, "image":None})
+
+    def ask(self, prompt, model="openai/gpt-5.1", image_base64=None):
+        self.raw_msgs.append({"role": "user", "prompt": prompt, "image": image_base64})
+        messages = self.make_messages(self.raw_msgs[:-1], omit_images=True)
+        messages += self.make_messages([self.raw_msgs[-1]], omit_images=False)
+        total_len = sum(2000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages)   # estimate token count
+        content = self.raw_ask(messages, model)
+        if not content.startswith("Error:"):
+            self.raw_msgs.append({"role": "assistant", "prompt": content, "image": None})
+        if total_len > self.context_win: self.summary_history(model)
+        return content
+        
 
 class MockFunction:
     def __init__(self, name, arguments):

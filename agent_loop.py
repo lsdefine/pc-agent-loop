@@ -48,7 +48,7 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
         response = client.chat(messages=messages, tools=tools_schema)
 
         if response.thinking: yield '<thinking>' + response.thinking + '</thinking>\n\n'
-        if '</summary>```'  in response.content: response.content = response.content.replace('</summary>```', '</summary> \n```')
+        if '</summary>```'  in response.content: response.content = response.content.replace('</summary>```', '</summary>\n```')
         showcontent = response.content
         if '</file_content>' in showcontent:
             showcontent = re.sub(r'<file_content>\s*(.*?)\s*</file_content>', r'\n````\n<file_content>\n\1\n</file_content>\n````', showcontent, flags=re.DOTALL)
