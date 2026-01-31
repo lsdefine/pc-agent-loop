@@ -18,8 +18,11 @@ from agent_loop import agent_runner_loop, StepOutcome, BaseHandler
 @st.cache_resource
 def init():
     if not os.path.exists('temp'): os.makedirs('temp')
-    mainllm = SiderLLMSession(multiturns=6)
-    llmclient = ToolClient(mainllm.ask, auto_save_tokens=True)
+    llm_sessions = [SiderLLMSession(default_model="gemini-3.0-flash"), 
+                    SiderLLMSession(default_model="gpt-5-mini"), 
+                    SiderLLMSession(default_model="claude-4.5-haiku"), 
+                    LLMSession()]
+    llmclient = ToolClient([x.ask for x in llm_sessions], auto_save_tokens=True)
     return llmclient
 
 llmclient = init()
@@ -47,6 +50,7 @@ def agent_backend_stream(raw_query):
     sys_prompt = get_system_prompt()
     handler = GenericAgentHandler(None, history, './temp')
     llmclient.last_tools = ''   
+    llmclient.raw_api = llmclient.raw_apis[st.session_state.get("llm_no", 0)]
     ret = yield from agent_runner_loop(llmclient,
         sys_prompt, raw_query, handler,
         TOOLS_SCHEMA, max_turns=25)
@@ -61,6 +65,13 @@ if "messages" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+
+with st.sidebar:
+    current_idx = st.session_state.get("llm_no", 0)
+    st.caption(f"LLM Core: {current_idx}")
+    if st.button("切换备用链路"):
+        st.session_state.llm_no = (st.session_state.get("llm_no", 0) + 1) % len(llmclient.raw_apis)
+        st.rerun()
 
 if prompt := st.chat_input("请输入指令"):
     st.session_state.messages.append({"role": "user", "content": prompt})

@@ -8,9 +8,11 @@ except ImportError:
     capikey = ""
 
 class SiderLLMSession:
-    def __init__(self, multiturns=6):
+    def __init__(self, multiturns=6, default_model="gemini-3.0-flash"):
         self._core = Session(cookie=sider_cookie, proxies={'https':'127.0.0.1:2082'})   
-    def ask(self, prompt, model="gemini-3.0-flash"):
+        self.default_model = default_model
+    def ask(self, prompt, model=None):
+        if model is None: model = self.default_model
         if len(prompt) > 29000: 
             print(f"[Warn] Prompt too long ({len(prompt)} chars), truncating.")
             prompt = prompt[-29000:]
@@ -44,7 +46,7 @@ class LLMSession:
             elif not omit_images and msg['image']:
                 messages.append({"role": msg['role'], "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{msg['image']}"}},
-                    {"type": "text", "text": msg['prompt']}   ]})
+                    {"type": "text", "text": msg['prompt']} ]})
             else:
                 messages.append({"role": msg['role'], "content": msg['prompt']})
         return messages
@@ -56,8 +58,10 @@ class LLMSession:
         p = "Summarize prev summary and prev conversations into compact memory (facts/decisions/constraints/open questions). Do NOT restate long schemas. The new summary should less than 1000 tokens.\n"
         messages = self.make_messages(old, omit_images=True)
         messages += [{"role":"user", "content":p}]
-        self.summary = self.raw_ask(messages, model, temperature=0.1)
-        self.raw_msgs.insert(0, {"role":"system", "prompt":"Prev summary:\n"+self.summary, "image":None})
+        summary = self.raw_ask(messages, model, temperature=0.1)
+        if not summary.startswith("Error:"): 
+            self.raw_msgs.insert(0, {"role":"system", "prompt":"Prev summary:\n"+summary, "image":None})
+        else: self.raw_msgs = old + self.raw_msgs   # 不做了，下次再做
 
     def ask(self, prompt, model="openai/gpt-5.1", image_base64=None):
         self.raw_msgs.append({"role": "user", "prompt": prompt, "image": image_base64})
@@ -92,7 +96,9 @@ class MockResponse:
 
 class ToolClient:
     def __init__(self, raw_api_func, auto_save_tokens=False):
-        self.raw_api = raw_api_func
+        if isinstance(raw_api_func, list): self.raw_apis = raw_api_func
+        else: self.raw_apis = [raw_api_func]
+        self.raw_api = self.raw_apis[0]
         self.auto_save_tokens = auto_save_tokens
         self.last_tools = ''
         self.total_cd_tokens = 0

@@ -66,12 +66,12 @@ def code_run(code: str, code_type: str = "python", timeout: int = 60, cwd: str =
         status = "success" if exit_code == 0 else "error"
         status_icon = "✅" if exit_code == 0 else "❌"
         if exit_code is None: status_icon = "⏳" 
-        output_snippet = (stdout_str[:100] + '...' + stdout_str[-100:]) if len(stdout_str) > 300 else stdout_str
+        output_snippet = smart_format(stdout_str, max_str_len=600, omit_str='\n[omitted long output]\n')
         yield f"[Status] {status_icon} Exit Code: {exit_code}\n[Stdout]\n{output_snippet}\n"
-        if process.stdout: process.stdout.close()
+        if process.stdout: threading.Thread(target=process.stdout.close, daemon=True).start()
         return {
             "status": status,
-            "stdout": stdout_str[-2000:],
+            "stdout": smart_format(stdout_str, max_str_len=4000, omit_str='\n[omitted long output]\n'),
             "exit_code": exit_code
         }
     except Exception as e:
@@ -198,7 +198,7 @@ def file_read(path, start=1, keyword=None, count=100, show_linenos=True):
     try:
         with open(path, 'r', encoding='utf-8', errors='replace') as f:
             stream = (
-                (i, (l[:L_MAX].rstrip() + TAG if len(l) > L_MAX else l.rstrip()))
+                (i, (l[:L_MAX].rstrip() + TAG if len(l) > L_MAX else l.rstrip('\r\n')))
                 for i, l in enumerate(f, 1)
             )
             stream = itertools.dropwhile(lambda x: x[0] < start, stream)
@@ -211,15 +211,15 @@ def file_read(path, start=1, keyword=None, count=100, show_linenos=True):
                     before.append((i, l))
                 else: return f"Keyword '{keyword}' not found after line {start}."
             else: res = itertools.islice(stream, count)
-            return "\n".join(f"{i}| {l}" if show_linenos else l for i, l in res)
+            return "\n".join(f"{i}|{l}" if show_linenos else l for i, l in res)
     except Exception as e:
         return f"Error: {str(e)}"
 
-def smart_format(data, max_depth=2, max_str_len=100):
+def smart_format(data, max_depth=2, max_str_len=100, omit_str=' ... '):
     def truncate(obj, depth):
         if isinstance(obj, str):
-            if len(obj) > max_str_len: return f"{obj[:max_str_len//2]} ... {obj[-max_str_len//2:]}"
-            return obj
+            if len(obj) < max_str_len+len(omit_str)*2: return obj
+            return f"{obj[:max_str_len//2]}{omit_str}{obj[-max_str_len//2:]}"
         if depth >= max_depth: return truncate(str(obj), depth + 1)
         if isinstance(obj, dict): return {k: truncate(v, depth + 1) for k, v in obj.items()}
         if isinstance(obj, list): return [truncate(i, depth + 1) for i in obj]
@@ -259,15 +259,17 @@ class GenericAgentHandler(BaseHandler):
         # 从 response.content 中提取代码块, 匹配 ```python ... ``` 或 ```powershell ... ```
         pattern = rf"```{code_type}\n(.*?)\n```"
         matches = re.findall(pattern, response.content, re.DOTALL)
+        warning = ""
         if not matches:
-            return StepOutcome(None, next_prompt=f"【系统错误】：你调用了 code_run，但未在回复中提供 ```{code_type} 代码块。请重新输出代码并附带工具调用。")       
-        # 提取最后一个代码块（通常是模型修正后的最终逻辑）
-        code = matches[-1].strip()
+            code = args.get("code")
+            if not code: return StepOutcome(None, next_prompt=f"【系统错误】：你调用了 code_run，但未在回复中提供 ```{code_type} 代码块。请重新输出代码并附带工具调用。")
+            warning = "\n下次要记得在回复中提供代码块，而不是放在参数中"
+        else: code = matches[-1].strip()   # 提取最后一个代码块（通常是模型修正后的最终逻辑）
         timeout = args.get("timeout", 60)
         raw_path = os.path.join(self.cwd, args.get("cwd", './'))
         cwd = os.path.normpath(os.path.abspath(raw_path))
         result = yield from code_run(code, code_type, timeout, cwd)
-        next_prompt = self._get_anchor_prompt()
+        next_prompt = self._get_anchor_prompt() + warning
         return StepOutcome(result, next_prompt=next_prompt)
     
     def do_ask_user(self, args, response):
