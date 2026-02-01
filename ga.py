@@ -363,6 +363,9 @@ class GenericAgentHandler(BaseHandler):
         show_linenos = args.get("show_linenos", True)
         result = file_read(path, start=start, keyword=keyword,
                            count=count, show_linenos=show_linenos)
+        if show_linenos:
+            tips = '由于设置了show_linenos，以下返回信息为：(行号|)内容 。\n'
+            result = tips + result 
         next_prompt = self._get_anchor_prompt()
         return StepOutcome(result, next_prompt=next_prompt)
     
@@ -395,7 +398,7 @@ class GenericAgentHandler(BaseHandler):
         yield "[Info] No tool called. Final response to user.\n"
         return StepOutcome(response, next_prompt=None, should_exit=True)
     
-    def do_distill_good_memory(self, args, response):
+    def do_conclude_and_reflect(self, args, response):
         '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。
         目前只支持全局记忆，暂不处理过程记忆或特定任务经验。
         '''
@@ -420,7 +423,7 @@ def get_global_memory():
     try:
         with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: insight = f.read()
         prompt += f"\n\n[Global Memory Insight]\n"
-        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Your Code Root).\n'
+        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Your Code Root), ../temp (./, Your default cwd) \n'
         prompt += 'MEM_RULE: Insight is the index of Facts. Sync Insight whenever Facts change. For details, read Facts.\n'
         prompt += "EXT: ../memory/ may contain other task-specific memories.\n"
         prompt += insight + "\n"

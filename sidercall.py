@@ -180,7 +180,7 @@ class ToolClient:
                 data = tryparse(json_str)
                 func_name = data.get('function') or data.get('tool')
                 args = data.get('arguments') or data.get('args')
-                if args is None: args = {}
+                if args is None: args = data
                 if func_name: tool_calls = [MockToolCall(func_name, args)]
             except json.JSONDecodeError:
                 print("[Warn] Failed to parse tool_use JSON:", json_str)
