@@ -35,5 +35,6 @@ model_responses.txt
 
 *.zip
 
-# 存储敏感信息的记忆文件夹
+# 存储敏感信息的记忆文件夹（除了公开的 SOP）
 memory/
+!memory/memory_management_sop.md
