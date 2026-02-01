@@ -1,0 +1,28 @@
+## Global Memory Index (Logic)
+
+[CONSTITUTION]
+1. 改我自身源码前必须先问用户；在 ./ 内自由实验可直接做。
+2. 要下结论/依赖环境/做操作前：先枚举可用存储(store)与索引；再读取相关条目；未验证不硬断言。
+3. 没有用户授权不要直接文本读取或移动密钥/密码文件，能引用即可。或者先请求用户许可。
+
+[STORES]
+- global_mem: ../memory/global_mem.txt (Facts, Policy, Prefs)
+- memory_dir: ../memory/ (SOPs, Tools)
+
+[ACCESS]
+- global_mem: 按 TOPIC 检索索引 → file_read 对应条目。
+- memory_dir: ls ../memory/
+
+[TOPICS.GLOBAL_MEM]
+# 【引导注释 - 使用后请删除】
+# 请模仿以下概括性 Tag 格式记录 global_mem.txt 中的事实：
+# - env/network: 网络代理或环境描述 (Global Facts ## [SECTION])
+# - auth/platform: 平台账号或认证信息 (Global Facts ## [SECTION])
+# - pref/download_dir: 文件存储偏好路径 (Global Facts ## [SECTION])
+# - tool/config: 核心工具运行参数 (Global Facts ## [SECTION])
+
+[TOPICS.MEMORY_DIR]
+# 【引导注释 - 使用后请删除】
+# 请模仿以下格式登记 memory 目录下的独立文件：
+# - sop/workflow: 标准操作流程文档 (.md)
+# - tool/automation: 自动化执行脚本 (.py)

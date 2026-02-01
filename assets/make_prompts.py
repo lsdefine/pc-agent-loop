@@ -15,7 +15,7 @@ def generate_tool_schema():
     """
     通过代码内省，将 Handler 的逻辑映射为高语义的工具描述。
     """
-    with open('ga.py', 'r', encoding='utf-8') as f:
+    with open('../ga.py', 'r', encoding='utf-8') as f:
         ga_code = f.read()
     # 极简且具备高度概括能力的元 Prompt
     meta_prompt = f"""
@@ -79,7 +79,7 @@ def generate_tool_schema():
         return None
 
 
-def make_system_prompt(ga_code_path='ga.py'):
+def make_system_prompt(ga_code_path='../ga.py'):
     with open(ga_code_path, 'r', encoding='utf-8') as f:
         ga_code = f.read()
 

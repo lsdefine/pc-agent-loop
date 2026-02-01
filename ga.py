@@ -97,7 +97,7 @@ def ask_user(question: str, candidates: list = None):
         }
     }
 
-from web_tools import execute_js_rich, get_html
+from simphtml import execute_js_rich, get_html
 
 driver = None
 
@@ -109,8 +109,9 @@ def first_init_driver():
         time.sleep(1)
         sess = driver.get_all_sessions()
         if len(sess) > 0: break
-    driver.newtab()
-    time.sleep(5)
+    if len(sess) == 1: 
+        driver.newtab()
+        time.sleep(5)
 
 def web_scan(focus_item="", switch_tab_id=None):
     """

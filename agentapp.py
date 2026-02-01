@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
 import time, json, re
 
-with open('tools_schema.json', 'r', encoding='utf-8') as f:
+with open('assets/tools_schema.json', 'r', encoding='utf-8') as f:
     TOOLS_SCHEMA = json.load(f)
 
 st.set_page_config(page_title="Cowork", layout="wide")
@@ -34,8 +34,11 @@ def get_system_prompt():
     if not os.path.exists('memory/global_mem.txt'):
         with open('memory/global_mem.txt', 'w', encoding='utf-8') as f: f.write('')
     if not os.path.exists('memory/global_mem_insight.txt'):
-        with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f: f.write('')
-    with open('sys_prompt.txt', 'r', encoding='utf-8') as f: prompt = f.read()
+        content = "## Global Memory Index (Logic)\n\n[CONSTITUTION]\n1. 改我自身源码前必须先问用户\n\n[STORES]\n- global_mem: ../memory/global_mem.txt\n\n[ACCESS]\n- global_mem: 按 TOPIC 检索索引\n\n[TOPICS.GLOBAL_MEM]"
+        if os.path.exists('assets/global_mem_insight_template.txt'):
+            with open('assets/global_mem_insight_template.txt', 'r', encoding='utf-8') as f: content = f.read()
+        with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f: f.write(content)
+    with open('assets/sys_prompt.txt', 'r', encoding='utf-8') as f: prompt = f.read()
     prompt += get_global_memory()
     return prompt
 
