@@ -1,5 +1,4 @@
 import os, json, re, time, requests
-from sider_ai_api import Session
 
 try: from mykey import sider_cookie
 except ImportError: sider_cookie = ""
@@ -8,6 +7,7 @@ except ImportError: oai_apikey = oai_apibase = oai_model = ""
 
 class SiderLLMSession:
     def __init__(self, default_model="gemini-3.0-flash"):
+        from sider_ai_api import Session
         self._core = Session(cookie=sider_cookie, proxies={'https':'127.0.0.1:2082'})   
         self.default_model = default_model
     def ask(self, prompt, model=None):

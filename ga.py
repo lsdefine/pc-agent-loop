@@ -1,4 +1,4 @@
-import sys, os, re, json, time, pyperclip, threading
+import sys, os, re, json, time, threading
 from pathlib import Path
 import tempfile, traceback, subprocess, itertools, collections
 if sys.stdout is None: sys.stdout = open(os.devnull, "w")
@@ -22,7 +22,7 @@ def code_run(code: str, code_type: str = "python", timeout: int = 60, cwd: str =
         tmp_file.write(code)
         tmp_path = tmp_file.name
         tmp_file.close()
-        cmd = ["python", "-X", "utf8", "-u", tmp_path]   
+        cmd = [sys.executable, "-X", "utf8", "-u", tmp_path]   
     elif code_type in ["powershell", "bash"]:
         if os.name == 'nt': cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", code]
         else: cmd = ["bash", "-c", code]
