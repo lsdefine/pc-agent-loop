@@ -3,8 +3,8 @@ from sider_ai_api import Session
 
 try: from mykey import sider_cookie
 except ImportError: sider_cookie = ""
-try: from mykey import oai_apikey, oai_apibase
-except ImportError: oai_apikey = oai_apibase = ""
+try: from mykey import oai_apikey, oai_apibase, oai_model
+except ImportError: oai_apikey = oai_apibase = oai_model = ""
 
 class SiderLLMSession:
     def __init__(self, default_model="gemini-3.0-flash"):
@@ -18,14 +18,16 @@ class SiderLLMSession:
         return ''.join(self._core.chat(prompt, model))
   
 class LLMSession:
-    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, context_win=32000):
+    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=32000):
         self.api_key = api_key
         self.api_base = api_base
         self.raw_msgs = []
         self.messages = []
         self.context_win = context_win
+        self.model = model
 
-    def raw_ask(self, messages, model, temperature=0.5):
+    def raw_ask(self, messages, model=None, temperature=0.5):
+        if model is None: model = self.model
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         try:
             response = requests.post(
@@ -50,7 +52,8 @@ class LLMSession:
                 messages.append({"role": msg['role'], "content": msg['prompt']})
         return messages
        
-    def summary_history(self, model):
+    def summary_history(self, model=None):
+        if model is None: model = self.model
         keep = max(2, len(self.raw_msgs)//2)
         old, self.raw_msgs = self.raw_msgs[:-keep], self.raw_msgs[-keep:]
         if len(old) == 0: old = self.raw_msgs; self.raw_msgs = []
@@ -62,7 +65,8 @@ class LLMSession:
             self.raw_msgs.insert(0, {"role":"system", "prompt":"Prev summary:\n"+summary, "image":None})
         else: self.raw_msgs = old + self.raw_msgs   # 不做了，下次再做
 
-    def ask(self, prompt, model="openai/gpt-5.1", image_base64=None):
+    def ask(self, prompt, model=None, image_base64=None):
+        if model is None: model = self.model
         self.raw_msgs.append({"role": "user", "prompt": prompt, "image": image_base64})
         messages = self.make_messages(self.raw_msgs[:-1], omit_images=True)
         messages += self.make_messages([self.raw_msgs[-1]], omit_images=False)
@@ -70,7 +74,7 @@ class LLMSession:
         content = self.raw_ask(messages, model)
         if not content.startswith("Error:"):
             self.raw_msgs.append({"role": "assistant", "prompt": content, "image": None})
-        if total_len > self.context_win: self.summary_history(model)
+        if total_len > self.context_win: self.summary_history()
         return content
         
 
