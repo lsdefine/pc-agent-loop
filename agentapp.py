@@ -18,10 +18,14 @@ from agent_loop import agent_runner_loop, StepOutcome, BaseHandler
 @st.cache_resource
 def init():
     if not os.path.exists('temp'): os.makedirs('temp')
-    llm_sessions = [SiderLLMSession(default_model="gemini-3.0-flash"), 
-                    SiderLLMSession(default_model="gpt-5-mini"), 
-                    SiderLLMSession(default_model="claude-4.5-haiku"), 
-                    LLMSession()]
+    from sidercall import sider_cookie, oai_apikey, oai_apibase
+    llm_sessions = []
+    if sider_cookie: llm_sessions += [SiderLLMSession(default_model=x) for x in \
+                                ["gemini-3.0-flash", "claude-4.5-haiku", "gpt-5-mini"]]
+    if oai_apikey: llm_sessions += [LLMSession(api_key=oai_apikey, api_base=oai_apibase)]
+    if len(llm_sessions) == 0:
+        st.error("⚠️ 未配置任何可用的 LLM 接口，请在 mykey.py 中添加 sider_cookie 或 oai_apikey+oai_apibase 等信息后重启。")
+        st.stop()
     llmclient = ToolClient([x.ask for x in llm_sessions], auto_save_tokens=True)
     return llmclient
 

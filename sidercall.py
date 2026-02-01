@@ -1,14 +1,13 @@
 import os, json, re, time, requests
 from sider_ai_api import Session
 
-try:
-    from mykey import sider_cookie, capikey
-except ImportError:
-    sider_cookie = ""
-    capikey = ""
+try: from mykey import sider_cookie
+except ImportError: sider_cookie = ""
+try: from mykey import oai_apikey, oai_apibase
+except ImportError: oai_apikey = oai_apibase = ""
 
 class SiderLLMSession:
-    def __init__(self, multiturns=6, default_model="gemini-3.0-flash"):
+    def __init__(self, default_model="gemini-3.0-flash"):
         self._core = Session(cookie=sider_cookie, proxies={'https':'127.0.0.1:2082'})   
         self.default_model = default_model
     def ask(self, prompt, model=None):
@@ -19,7 +18,7 @@ class SiderLLMSession:
         return ''.join(self._core.chat(prompt, model))
   
 class LLMSession:
-    def __init__(self, api_key=capikey, api_base="http://113.45.39.247:3001/v1", multiturns=6, context_win=32000):
+    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, context_win=32000):
         self.api_key = api_key
         self.api_base = api_base
         self.raw_msgs = []
