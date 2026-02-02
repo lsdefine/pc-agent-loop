@@ -199,7 +199,7 @@ class TMWebDriver:
                     print(f"会话 {session_id} 未连接，自动切换到最新活动会话: {session.id}")
                     session_id = self.default_session_id = session.id
                 if not session or not session.is_active(): 
-                    breakpoint()
+                    #breakpoint()
                     raise ValueError(f"会话ID {session_id} 未连接")  
 
         tp = session.type

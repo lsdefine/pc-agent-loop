@@ -105,10 +105,11 @@ def first_init_driver():
     global driver
     from TMWebDriver import TMWebDriver
     driver = TMWebDriver()
-    while True:
+    for i in range(20):
         time.sleep(1)
         sess = driver.get_all_sessions()
         if len(sess) > 0: break
+    if len(sess) == 0: return 
     if len(sess) == 1: 
         driver.newtab()
         time.sleep(5)
@@ -122,6 +123,8 @@ def web_scan(focus_item="", switch_tab_id=None):
     """
     global driver
     if driver is None: first_init_driver()
+    if len(driver.get_all_sessions()) == 0:
+        return {"status": "error", "msg": "没有可用的浏览器标签页，请先打开一个浏览器标签页，且确认TMWebDriver浏览器tempermonkey插件已安装并启用。"}
     try:
         tabs = []
         for sess in driver.get_all_sessions(): 
@@ -171,6 +174,8 @@ def web_execute_js(script: str):
     """
     global driver
     if driver is None: first_init_driver()
+    if len(driver.get_all_sessions()) == 0:
+        return {"status": "error", "msg": "没有可用的浏览器标签页，请先打开一个浏览器标签页，且确认TMWebDriver浏览器tempermonkey插件已安装并启用。"}
     try:
         result = execute_js_rich(script, driver)
         return result
