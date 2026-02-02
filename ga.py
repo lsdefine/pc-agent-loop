@@ -71,7 +71,7 @@ def code_run(code: str, code_type: str = "python", timeout: int = 60, cwd: str =
         if process.stdout: threading.Thread(target=process.stdout.close, daemon=True).start()
         return {
             "status": status,
-            "stdout": smart_format(stdout_str, max_str_len=4000, omit_str='\n[omitted long output]\n'),
+            "stdout": smart_format(stdout_str, max_str_len=8000, omit_str='\n[omitted long output]\n'),
             "exit_code": exit_code
         }
     except Exception as e:

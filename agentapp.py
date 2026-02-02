@@ -8,7 +8,8 @@ import streamlit as st
 import time, json, re
 
 with open('assets/tools_schema.json', 'r', encoding='utf-8') as f:
-    TOOLS_SCHEMA = json.load(f)
+    TS = f.read()
+    TOOLS_SCHEMA = json.loads(TS if os.name == 'nt' else TS.replace('powershell', 'bash'))
 
 st.set_page_config(page_title="Cowork", layout="wide")
 
