@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from sidercall import SiderLLMSession, LLMSession, ToolClient
 from agent_loop import agent_runner_loop, StepOutcome, BaseHandler
-from ga import GenericAgentHandler, smart_format, get_global_memory
+from ga import GenericAgentHandler, smart_format, get_global_memory, format_error
 
 with open('assets/tools_schema.json', 'r', encoding='utf-8') as f:
     TS = f.read()
@@ -38,7 +38,6 @@ class GeneraticAgent:
             self.llmclient = llmclient
         else:
             self.llmclient = None
-
         self.lock = threading.Lock()
         self.history = []               
         self.task_queue = queue.Queue() 
@@ -50,8 +49,11 @@ class GeneraticAgent:
         self.current_source = 'none'
 
     def abort(self):
-        if self.is_running: self.stop_sig = True
+        if not self.is_running: return
+        self.stop_sig = True
+
     def put_task(self, query, source="user"):
+        self.display_queue.queue.clear()
         self.task_queue.put({"query": query, "source": source})
 
     def run(self):
@@ -74,14 +76,13 @@ class GeneraticAgent:
             try:
                 full_response = ""
                 for chunk in gen:
+                    if self.stop_sig: break
                     full_response += chunk
                     self.display_queue.put({'next': full_response, 'source': source})
-                    if self.stop_sig:
-                        self.stop_sig = False
-                        raise KeyboardInterrupt("用户中止运行")
                 self.display_queue.put({'done': full_response, 'source': source})
                 self.history = handler.history_info
-            except:
+            except Exception as e:
+                print(f"Backend Error: {format_error(e)}")
                 self.display_queue.put({'done': '异常停止', 'source': source})
             finally:
                 self.is_running = False

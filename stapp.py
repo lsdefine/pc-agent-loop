@@ -37,6 +37,9 @@ def render_llm_switcher():
     if st.button("切换备用链路"):
         agent.llm_no = (current_idx + 1) % len(agent.llmclient.raw_apis)
         st.rerun(scope="fragment")
+    if st.button("强行停止任务"):
+        agent.abort()
+        st.toast("已发送停止信号")
 with st.sidebar: render_llm_switcher()
 
 @st.fragment(run_every="1s")
@@ -66,8 +69,6 @@ def agent_backend_stream(prompt):
     finally:
         agent.abort()
         print('User aborted the operation.')
-        while not agent.display_queue.empty():
-            agent.display_queue.get()
 
 if prompt := st.chat_input("请输入指令"):
     st.session_state.messages.append({"role": "user", "content": prompt})

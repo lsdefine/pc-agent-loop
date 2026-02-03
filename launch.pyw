@@ -22,7 +22,7 @@ def get_screen_width():
 def start_streamlit():
     global proc
     cmd = [
-        sys.executable, "-m", "streamlit", "run", "agentapp.py", 
+        sys.executable, "-m", "streamlit", "run", "stapp.py", 
         "--server.port", "8501", 
         "--server.headless", "true",
         "--theme.base", "dark" #以此默认开启暗黑模式，更有极客感
@@ -33,8 +33,10 @@ def start_streamlit():
 if __name__ == '__main__':
     t = threading.Thread(target=start_streamlit, daemon=True)
     t.start()
-    screen_width = get_screen_width()
-    x_pos = screen_width - WINDOW_WIDTH - RIGHT_PADDING
+    if os.name == 'nt':
+        screen_width = get_screen_width()
+        x_pos = screen_width - WINDOW_WIDTH - RIGHT_PADDING
+    else: x_pos = 100
     time.sleep(2) 
     webview.create_window(
         title='GenericAgent', 
