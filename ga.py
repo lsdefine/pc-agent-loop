@@ -7,18 +7,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from agent_loop import BaseHandler, StepOutcome, try_call_generator
 
-def code_run(code: str, code_type: str = "python", timeout: int = 60, cwd: str = None):
-    """
-    针对 Windows 优化的双模态执行器
+def code_run(code, code_type="python", timeout=60, cwd=None, code_cwd=None):
+    """代码执行器
     python: 运行复杂的 .py 脚本（文件模式）
-    powershell: 运行单行指令（命令模式）
+    powershell/bash: 运行单行指令（命令模式）
     优先使用python，仅在必要系统操作时使用powershell。
     """
     preview = (code[:60].replace('\n', ' ') + '...') if len(code) > 60 else code.strip()
     yield f"[Action] Running {code_type} in {os.path.basename(cwd)}: {preview}\n"
     cwd = cwd or os.path.join(os.getcwd(), 'temp'); tmp_path = None
     if code_type == "python":
-        tmp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode='w', encoding='utf-8')
+        tmp_file = tempfile.NamedTemporaryFile(suffix=".ai.py", delete=False, mode='w', encoding='utf-8', dir=code_cwd)
         tmp_file.write(code)
         tmp_path = tmp_file.name
         tmp_file.close()
@@ -274,7 +273,8 @@ class GenericAgentHandler(BaseHandler):
         timeout = args.get("timeout", 60)
         raw_path = os.path.join(self.cwd, args.get("cwd", './'))
         cwd = os.path.normpath(os.path.abspath(raw_path))
-        result = yield from code_run(code, code_type, timeout, cwd)
+        code_cwd = os.path.normpath(self.cwd)
+        result = yield from code_run(code, code_type, timeout, cwd, code_cwd=code_cwd)
         next_prompt = self._get_anchor_prompt() + warning
         return StepOutcome(result, next_prompt=next_prompt)
     

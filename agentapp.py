@@ -74,12 +74,14 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-with st.sidebar:
+@st.fragment
+def render_llm_switcher():
     current_idx = st.session_state.get("llm_no", 0)
     st.caption(f"LLM Core: {current_idx}")
     if st.button("切换备用链路"):
         st.session_state.llm_no = (st.session_state.get("llm_no", 0) + 1) % len(llmclient.raw_apis)
-        st.rerun()
+        st.rerun(scope="fragment")
+with st.sidebar: render_llm_switcher()
 
 if prompt := st.chat_input("请输入指令"):
     st.session_state.messages.append({"role": "user", "content": prompt})

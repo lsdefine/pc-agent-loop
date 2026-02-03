@@ -18,7 +18,7 @@ class SiderLLMSession:
         return ''.join(self._core.chat(prompt, model))
   
 class LLMSession:
-    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=32000):
+    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=16000):
         self.api_key = api_key
         self.api_base = api_base
         self.raw_msgs = []
