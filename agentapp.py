@@ -3,72 +3,28 @@ if sys.stdout is None: sys.stdout = open(os.devnull, "w")
 if sys.stderr is None: sys.stderr = open(os.devnull, "w")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-
 import streamlit as st
-import time, json, re
-
-with open('assets/tools_schema.json', 'r', encoding='utf-8') as f:
-    TS = f.read()
-    TOOLS_SCHEMA = json.loads(TS if os.name == 'nt' else TS.replace('powershell', 'bash'))
+import time, json, re, threading
+from agentmain import GeneraticAgent
 
 st.set_page_config(page_title="Cowork", layout="wide")
 
-from sidercall import SiderLLMSession, LLMSession, ToolClient
-from agent_loop import agent_runner_loop, StepOutcome, BaseHandler
-
 @st.cache_resource
 def init():
-    if not os.path.exists('temp'): os.makedirs('temp')
-    from sidercall import sider_cookie, oai_apikey, oai_apibase
-    llm_sessions = []
-    if sider_cookie: llm_sessions += [SiderLLMSession(default_model=x) for x in \
-                                ["gemini-3.0-flash", "claude-haiku-4.5", "gpt-5-mini"]]
-    if oai_apikey: llm_sessions += [LLMSession(api_key=oai_apikey, api_base=oai_apibase)]
-    if len(llm_sessions) == 0:
+    agent = GeneraticAgent()
+    if agent.llmclient is None:
         st.error("⚠️ 未配置任何可用的 LLM 接口，请在 mykey.py 中添加 sider_cookie 或 oai_apikey+oai_apibase 等信息后重启。")
         st.stop()
-    llmclient = ToolClient([x.ask for x in llm_sessions], auto_save_tokens=True)
-    return llmclient
+    else:
+        threading.Thread(target=agent.run, daemon=True).start()
+    return agent
 
-llmclient = init()
-
-from ga import GenericAgentHandler, smart_format, get_global_memory
-
-def get_system_prompt():
-    if not os.path.exists('memory'): os.makedirs('memory')
-    if not os.path.exists('memory/global_mem.txt'):
-        with open('memory/global_mem.txt', 'w', encoding='utf-8') as f: f.write('')
-    if not os.path.exists('memory/global_mem_insight.txt'):
-        content = "## Global Memory Index (Logic)\n\n[CONSTITUTION]\n1. 改我自身源码前必须先问用户\n\n[STORES]\n- global_mem: ../memory/global_mem.txt\n\n[ACCESS]\n- global_mem: 按 TOPIC 检索索引\n\n[TOPICS.GLOBAL_MEM]"
-        if os.path.exists('assets/global_mem_insight_template.txt'):
-            with open('assets/global_mem_insight_template.txt', 'r', encoding='utf-8') as f: content = f.read()
-        with open('memory/global_mem_insight.txt', 'w', encoding='utf-8') as f: f.write(content)
-    with open('assets/sys_prompt.txt', 'r', encoding='utf-8') as f: prompt = f.read()
-    prompt += get_global_memory()
-    return prompt
-
-if "last_goal" not in st.session_state:
-    st.session_state.last_goal = ""
-
-def agent_backend_stream(raw_query):
-    history = st.session_state.get("last_history", [])
-    rquery = smart_format(raw_query.replace('\n', ' '), max_str_len=200)
-    history.append(f"[USER]: {rquery}")
-
-    sys_prompt = get_system_prompt()
-    handler = GenericAgentHandler(None, history, './temp')
-    llmclient.last_tools = ''   
-    llmclient.raw_api = llmclient.raw_apis[st.session_state.get("llm_no", 0)]
-    ret = yield from agent_runner_loop(llmclient,
-        sys_prompt, raw_query, handler,
-        TOOLS_SCHEMA, max_turns=25)
-    st.session_state.last_history = handler.history_info
-    return ret
+agent = init()
 
 st.title("🖥️ Cowork")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+if "idle_buf" not in st.session_state: st.session_state.idle_buf = ""
+if "messages" not in st.session_state: st.session_state.messages = []
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -76,23 +32,51 @@ for msg in st.session_state.messages:
 
 @st.fragment
 def render_llm_switcher():
-    current_idx = st.session_state.get("llm_no", 0)
+    current_idx = agent.llm_no
     st.caption(f"LLM Core: {current_idx}")
     if st.button("切换备用链路"):
-        st.session_state.llm_no = (st.session_state.get("llm_no", 0) + 1) % len(llmclient.raw_apis)
+        agent.llm_no = (current_idx + 1) % len(agent.llmclient.raw_apis)
         st.rerun(scope="fragment")
 with st.sidebar: render_llm_switcher()
 
+@st.fragment(run_every="1s")
+def global_queue_listener():
+    if agent.current_source != 'auto': return
+    while not agent.display_queue.empty():
+        item = agent.display_queue.get()
+        if 'next' in item:
+            st.session_state.idle_buf = item['next']
+        if 'done' in item:
+            st.session_state.messages.append({"role": "assistant", "content": f"{item['done']}"})
+            st.session_state.idle_buf = ""
+            st.rerun()
+    if st.session_state.get("idle_buf"):
+        with st.chat_message("assistant"):
+            st.write(st.session_state.idle_buf + "▌")
+
+global_queue_listener()
+
+def agent_backend_stream(prompt):
+    agent.put_task(prompt, source="user")
+    try:
+        while True:
+            item = agent.display_queue.get()
+            if 'next' in item: yield item['next'] 
+            if 'done' in item: break
+    finally:
+        agent.abort()
+        print('User aborted the operation.')
+        while not agent.display_queue.empty():
+            agent.display_queue.get()
+
 if prompt := st.chat_input("请输入指令"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        full_response = ""
-        for chunk in agent_backend_stream(prompt):
-            full_response += chunk
-            message_placeholder.markdown(full_response + "▌")
-        message_placeholder.markdown(full_response)
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+        response = ''
+        for response in agent_backend_stream(prompt):
+            message_placeholder.markdown(response + "▌")
+        message_placeholder.markdown(response)
+    st.session_state.messages.append({"role": "assistant", "content": response})
