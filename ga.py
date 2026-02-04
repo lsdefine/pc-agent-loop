@@ -267,8 +267,8 @@ class GenericAgentHandler(BaseHandler):
         warning = ""
         if not matches:
             code = args.get("code")
-            if not code: return StepOutcome(None, next_prompt=f"【系统错误】：你调用了 code_run，但未在回复中提供 ```{code_type} 代码块。请重新输出代码并附带工具调用。")
-            warning = "\n下次要记得在回复中提供代码块，而不是放在参数中"
+            if not code: return StepOutcome(None, next_prompt=f"【系统错误】：你调用了 code_run，但未在先在回复正文中提供 ```{code_type} 代码块。请重新输出代码并附带工具调用。")
+            warning = "\n下次要记得先在回复正文中提供代码块，而不是放在参数中"
         else: code = matches[-1].strip()   # 提取最后一个代码块（通常是模型修正后的最终逻辑）
         timeout = args.get("timeout", 60)
         raw_path = os.path.join(self.cwd, args.get("cwd", './'))
@@ -395,12 +395,42 @@ class GenericAgentHandler(BaseHandler):
 
     def do_no_tool(self, args, response):
         '''这是一个特殊工具，由引擎自主调用，不要包含在TOOLS_SCHEMA里。
+        当模型在一轮中未显式调用任何工具时，由引擎自动触发。
+        二次确认仅在回复几乎只包含<thinking>/<summary>和一段大代码块时触发。
         '''
-        if not response or not getattr(response, 'content', '').strip():
+        content = getattr(response, 'content', '') or ""
+
+        # 1. 空回复保护：要求模型重新生成内容或调用工具
+        if not response or not content.strip():
             yield "[Warn] LLM returned an empty response. Retrying...\n"
             next_prompt = "[System] 检测到空回复，请重新生成内容或调用工具。"
             return StepOutcome({}, next_prompt=next_prompt, should_exit=False)
-        yield "[Info] No tool called. Final response to user.\n"
+        # 2. 检测“包含较大代码块但未调用工具”的情况
+        # 这里通过三引号代码块 + 最少字符数的方式粗略判断“大段代码”
+        code_block_pattern = r"```[a-zA-Z0-9_]*\n[\s\S]{100,}?```"
+        m = re.search(code_block_pattern, content)
+        if m:
+            # 仅当 content 由 <thinking> / <summary> 和该代码块构成时才触发二次确认
+            residual = content
+            # 去掉代码块本身
+            residual = residual.replace(m.group(0), "")
+            # 去掉<thinking>和<summary>块（大小写不敏感）
+            residual = re.sub(r"<thinking>[\s\S]*?</thinking>", "", residual, flags=re.IGNORECASE)
+            residual = re.sub(r"<summary>[\s\S]*?</summary>", "", residual, flags=re.IGNORECASE)
+            # 如果去除上述结构后的非空白字符很少，说明没有额外自然语言说明
+            clean_residual = re.sub(r"\s+", "", residual)
+            if len(clean_residual) <= 50:
+                yield "[Info] Detected large code block without tool call and no extra natural language. Requesting clarification.\n"
+                next_prompt = (
+                    "[System] 检测到你在上一轮回复中主要内容是较大代码块（仅配有<thinking>/<summary>），且本轮未调用任何工具。\n"
+                    "如果这些代码需要执行、写入文件或进一步分析，请重新组织回复并显式调用相应工具"
+                    "（例如：code_run、file_write、file_patch 等）；\n"
+                    "如果只是向用户展示或讲解代码片段，请在回复中补充自然语言说明，"
+                    "并明确是否还需要额外的实际操作。"
+                )
+                return StepOutcome({}, next_prompt=next_prompt, should_exit=False)
+        # 3. 正常情况：直接将回复返回给用户并结束循环
+        yield "[Info] Final response to user.\n"
         return StepOutcome(response, next_prompt=None, should_exit=True)
     
     def do_conclude_and_reflect(self, args, response):
@@ -421,14 +451,16 @@ class GenericAgentHandler(BaseHandler):
         print(prompt)
         if self.plan: prompt += f"\n<plan>{self.plan}</plan>"
         if self.focus: prompt += f"\n<focus>{self.focus}</focus>"
-        return prompt + "\n请继续执行下一步。"
+        return prompt
 
 def get_global_memory():
     prompt = "\n"
     try:
         with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: insight = f.read()
-        prompt += f"\n\n[Global Memory Insight]\n"
-        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../memory/global_mem_insight.txt (Logic), ../ (Your Code Root), ../temp (./, Your default cwd) \n'
+        prompt += f"\n\n[Memory Insight (../memory/global_mem_insight.txt)]\n"
+        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../ (Your Code Root)\n'
+        prompt += f'cwd = {os.path.abspath("./temp")}\n'
+        prompt += f'But prefer use relative paths (./ = cwd) to locate.\n'
         prompt += 'MEM_RULE: Insight is the index of Facts. Sync Insight whenever Facts change. For details, read Facts.\n'
         prompt += "EXT: ../memory/ may contain other task-specific memories.\n"
         prompt += insight + "\n"

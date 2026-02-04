@@ -31,7 +31,7 @@ class GeneraticAgent:
         from sidercall import sider_cookie, oai_apikey, oai_apibase
         llm_sessions = []
         if sider_cookie: llm_sessions += [SiderLLMSession(default_model=x) for x in \
-                                    ["gemini-3.0-flash", "claude-haiku-4.5", "gpt-5-mini"]]
+                                    ["gemini-3.0-flash", "claude-haiku-4.5", "kimi-k2"]]
         if oai_apikey: llm_sessions += [LLMSession(api_key=oai_apikey, api_base=oai_apibase)]
         if len(llm_sessions) > 0: 
             llmclient = ToolClient([x.ask for x in llm_sessions], auto_save_tokens=True)
@@ -47,6 +47,10 @@ class GeneraticAgent:
         self.llm_no = 0
         self.stop_sig = False
         self.current_source = 'none'
+
+    def next_llm(self):
+        self.llm_no = (self.llm_no + 1) % len(self.llmclient.raw_apis)
+        self.llmclient.last_tools = ''
 
     def abort(self):
         if not self.is_running: return
@@ -73,17 +77,20 @@ class GeneraticAgent:
             self.llmclient.raw_api = self.llmclient.raw_apis[self.llm_no]
             gen = agent_runner_loop(self.llmclient, sys_prompt, 
                         raw_query, handler, TOOLS_SCHEMA, max_turns=25)
+                        
             try:
                 full_response = ""
                 for chunk in gen:
                     if self.stop_sig: break
                     full_response += chunk
                     self.display_queue.put({'next': full_response, 'source': source})
+                if '</summary>' in full_response: full_response = full_response.replace('</summary>', '</summary>\n\n')
+                if '</file_content>' in full_response: full_response = re.sub(r'<file_content>\s*(.*?)\s*</file_content>', r'\n````\n<file_content>\n\1\n</file_content>\n````', full_response, flags=re.DOTALL)
                 self.display_queue.put({'done': full_response, 'source': source})
                 self.history = handler.history_info
             except Exception as e:
                 print(f"Backend Error: {format_error(e)}")
-                self.display_queue.put({'done': '异常停止', 'source': source})
+                self.display_queue.put({'done': full_response + f'\n```\n{format_error(e)}\n```', 'source': source})
             finally:
                 self.is_running = False
                 self.stop_sig = False

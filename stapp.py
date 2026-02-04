@@ -35,27 +35,32 @@ def render_llm_switcher():
     current_idx = agent.llm_no
     st.caption(f"LLM Core: {current_idx}")
     if st.button("切换备用链路"):
-        agent.llm_no = (current_idx + 1) % len(agent.llmclient.raw_apis)
+        agent.next_llm()
         st.rerun(scope="fragment")
     if st.button("强行停止任务"):
         agent.abort()
         st.toast("已发送停止信号")
+    if st.button("重新注入System Prompt"):
+        agent.llmclient.last_tools = ''
+        st.toast("下次将重新注入System Prompt")
 with st.sidebar: render_llm_switcher()
 
 @st.fragment(run_every="1s")
 def global_queue_listener():
-    if agent.current_source != 'auto': return
-    while not agent.display_queue.empty():
-        item = agent.display_queue.get()
-        if 'next' in item:
-            st.session_state.idle_buf = item['next']
-        if 'done' in item:
-            st.session_state.messages.append({"role": "assistant", "content": f"{item['done']}"})
-            st.session_state.idle_buf = ""
-            st.rerun()
-    if st.session_state.get("idle_buf"):
-        with st.chat_message("assistant"):
-            st.write(st.session_state.idle_buf + "▌")
+    if agent.current_source == 'auto':
+        while not agent.display_queue.empty():
+            item = agent.display_queue.get()
+            if item.get('source') == 'auto':
+                if 'next' in item: st.session_state.idle_buf = item['next']
+                if 'done' in item:
+                    st.session_state.messages.append({"role": "assistant", "content": f"🤖 {item['done']}"})
+                    st.session_state.idle_buf = ""; st.rerun()
+        if st.session_state.get("idle_buf"):
+            with st.chat_message("assistant"):
+                st.write(st.session_state.idle_buf + "▌")
+    else:
+        st.caption("🟢 Agent Listener Active", help=f"Last sync: {int(time.time())}")
+        st.session_state.idle_buf = "" 
 
 global_queue_listener()
 
@@ -65,10 +70,10 @@ def agent_backend_stream(prompt):
         while True:
             item = agent.display_queue.get()
             if 'next' in item: yield item['next'] 
-            if 'done' in item: break
+            if 'done' in item: 
+                yield item['done']; break
     finally:
         agent.abort()
-        print('User aborted the operation.')
 
 if prompt := st.chat_input("请输入指令"):
     st.session_state.messages.append({"role": "user", "content": prompt})
