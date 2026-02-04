@@ -20,7 +20,7 @@ class SiderLLMSession:
         return ''.join(list(gen))
   
 class LLMSession:
-    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=16000):
+    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=12000):
         self.api_key = api_key
         self.api_base = api_base
         self.raw_msgs = []
@@ -84,7 +84,8 @@ class LLMSession:
         self.raw_msgs.append({"role": "user", "prompt": prompt, "image": image_base64})
         messages = self.make_messages(self.raw_msgs[:-1], omit_images=True)
         messages += self.make_messages([self.raw_msgs[-1]], omit_images=False)
-        total_len = sum(2000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages)   # estimate token count
+        msg_lens = [1000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages]
+        total_len = sum(msg_lens)   # estimate token count
         gen = self.raw_ask(messages, model)
         def _ask_gen():
             content = ''
@@ -92,7 +93,7 @@ class LLMSession:
                 content += chunk; yield chunk
             if not content.startswith("Error:"):
                 self.raw_msgs.append({"role": "assistant", "prompt": content, "image": None})
-            if total_len > 5000: print(f"[Debug] Whole context length {total_len}.")
+            if total_len > 5000: print(f"[Debug] Whole context length {total_len} {str(msg_lens)}.")
             if total_len > self.context_win: self.summary_history()
         if stream: return _ask_gen()
         return ''.join(list(_ask_gen())) 
@@ -147,7 +148,7 @@ class ToolClient:
             tools_json = json.dumps(tools, ensure_ascii=False, separators=(',', ':'))
             tool_instruction = f"""
 ### 交互协议 (必须严格遵守)
-请按照以下步骤思考并行动：
+请按照以下步骤思考并行动，标签之间需要回车换行：
 1. **思考**: 在 `<thinking>` 标签中先进行思考，分析现状和策略。
 2. **总结**: 在 `<summary>` 中输出*极为简短*的高度概括的单行（<30字）物理快照，包括上次工具调用结果获取的新信息+本次工具调用意图和预期。此内容将进入长期工作记忆，记录关键信息，严禁输出无实际信息增量的描述。
 3. **行动**: 如果需要调用工具，请在回复正文之后输出一个 **<tool_use>块**，然后结束，我会稍后给你返回<tool_result>块。
