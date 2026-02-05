@@ -306,9 +306,12 @@ class GenericAgentHandler(BaseHandler):
         if save_to_file and "js_return" in result:
             content = str(result["js_return"] or '')
             abs_path = self._get_abs_path(save_to_file)
-            with open(abs_path, 'w', encoding='utf-8') as f: f.write(str(content))
             result["js_return"] = content[:200] + ("..." if len(content) > 200 else "")
-            result["js_return"] += f"\n\n[已保存以上内容到 {abs_path}]"
+            try:
+                with open(abs_path, 'w', encoding='utf-8') as f: f.write(str(content))
+                result["js_return"] += f"\n\n[已保存以上内容到 {abs_path}]"
+            except:
+                result['js_return'] += f"\n\n[保存失败，无法写入文件 {abs_path}]"
         print("Web Execute JS Result:", smart_format(result))
         yield f"JS 执行结果:\n{smart_format(result)}\n"
         next_prompt = self._get_anchor_prompt()
@@ -435,13 +438,13 @@ class GenericAgentHandler(BaseHandler):
     
     def do_conclude_and_reflect(self, args, response):
         '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。
-        目前只支持全局记忆，暂不处理过程记忆或特定任务经验。
         '''
         prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实与用户偏好，更新至全局记忆。
 1. 严禁记录任何任务特定中间执行过程或临时变量经验，那是过程记忆不是全局记忆。
 2. 若无高价值新事实，那就不更新任何内容。
 3. 尽量先查看现有全局记忆形式，仅作少量修改不要影响其余部分。insight也要同步更新全局记忆的短印象来提醒存在性。
-4. 优先使用file_read和file_patch来保证少量修改。''' + get_global_memory()
+4. 优先使用file_read和file_patch来保证少量修改。
+5. 请先阅读L0的记忆更新SOP来确保了解修改规则。''' + get_global_memory()
         yield "[Info] Start distilling good memory for long-term storage.\n"
         return StepOutcome({"status": "success"}, next_prompt=prompt)
 
@@ -457,8 +460,8 @@ def get_global_memory():
     prompt = "\n"
     try:
         with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: insight = f.read()
-        prompt += f"\n\n[Memory Insight (../memory/global_mem_insight.txt)]\n"
-        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../ (Your Code Root)\n'
+        prompt += f"\n[Memory Insight (../memory/global_mem_insight.txt)]\n"
+        prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../ (Your Code Dir)\n'
         prompt += f'cwd = {os.path.abspath("./temp")}\n'
         prompt += f'But prefer use relative paths (./ = cwd) to locate.\n'
         prompt += 'MEM_RULE: Insight is the index of Facts. Sync Insight whenever Facts change. For details, read Facts.\n'

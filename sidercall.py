@@ -1,4 +1,4 @@
-import os, json, re, time, requests, sys
+import os, json, re, time, requests, sys, threading
 
 try: from mykey import sider_cookie
 except ImportError: sider_cookie = ""
@@ -27,6 +27,7 @@ class LLMSession:
         self.messages = []
         self.context_win = context_win
         self.model = model
+        self.lock = threading.Lock()
 
     def raw_ask(self, messages, model=None, temperature=0.5):
         if model is None: model = self.model
@@ -44,12 +45,13 @@ class LLMSession:
                     if data == "[DONE]": break
                     obj = json.loads(data)
                     ch = (obj.get("choices") or [{}])[0]
-                    if ch.get("finish_reason") is not None: break
+                    finish_reason = ch.get("finish_reason")
                     delta = (ch.get("delta") or {}).get("content")
-                    if not delta: continue
-                    yield delta
-                    buffer += delta
-                    if '</tool_use>' in buffer[-30:]: break
+                    if delta:
+                        yield delta
+                        buffer += delta
+                        if '</tool_use>' in buffer[-30:]: break
+                    if finish_reason: break
         except Exception as e:
             yield f"Error: {str(e)}"
 
@@ -68,16 +70,24 @@ class LLMSession:
        
     def summary_history(self, model=None):
         if model is None: model = self.model
-        keep = max(2, len(self.raw_msgs)//2)
-        old, self.raw_msgs = self.raw_msgs[:-keep], self.raw_msgs[-keep:]
-        if len(old) == 0: old = self.raw_msgs; self.raw_msgs = []
-        p = "Summarize prev summary and prev conversations into compact memory (facts/decisions/constraints/open questions). Do NOT restate long schemas. The new summary should less than 1000 tokens.\n"
-        messages = self.make_messages(old, omit_images=True)
-        messages += [{"role":"user", "content":p}]
-        summary = ''.join(list(self.raw_ask(messages, model, temperature=0.1)))
-        if not summary.startswith("Error:"): 
-            self.raw_msgs.insert(0, {"role":"system", "prompt":"Prev summary:\n"+summary, "image":None})
-        else: self.raw_msgs = old + self.raw_msgs   # 不做了，下次再做
+        with self.lock:
+            keep = 0; tok = 0
+            for m in reversed(self.raw_msgs):
+                l = len(str(m))//4
+                if tok + l > self.context_win//3: break
+                tok += l; keep += 1
+            keep = max(2, keep)
+            old, self.raw_msgs = self.raw_msgs[:-keep], self.raw_msgs[-keep:]
+            if len(old) == 0: old = self.raw_msgs; self.raw_msgs = []
+            p = "Summarize prev summary and prev conversations into compact memory (facts/decisions/constraints/open questions). Do NOT restate long schemas. The new summary should less than 1000 tokens. Permit dropping non-important things.\n"
+            messages = self.make_messages(old, omit_images=True)
+            messages += [{"role":"user", "content":p}]
+            msg_lens = [1000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages]
+            summary = ''.join(list(self.raw_ask(messages, model, temperature=0.1)))
+            print('[Debug] Summary length:', len(summary)//4, '; Context lengths:', str(msg_lens))
+            if not summary.startswith("Error:"): 
+                self.raw_msgs.insert(0, {"role":"assistant", "prompt":"Prev summary:\n"+summary, "image":None})
+            else: self.raw_msgs = old + self.raw_msgs   # 不做了，下次再做
 
     def ask(self, prompt, model=None, image_base64=None, stream=False):
         if model is None: model = self.model
@@ -86,15 +96,17 @@ class LLMSession:
         messages += self.make_messages([self.raw_msgs[-1]], omit_images=False)
         msg_lens = [1000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages]
         total_len = sum(msg_lens)   # estimate token count
-        gen = self.raw_ask(messages, model)
         def _ask_gen():
             content = ''
-            for chunk in gen:
-                content += chunk; yield chunk
+            with self.lock:
+                gen = self.raw_ask(messages, model)
+                for chunk in gen:
+                    content += chunk; yield chunk
             if not content.startswith("Error:"):
                 self.raw_msgs.append({"role": "assistant", "prompt": content, "image": None})
             if total_len > 5000: print(f"[Debug] Whole context length {total_len} {str(msg_lens)}.")
-            if total_len > self.context_win: self.summary_history()
+            if total_len > self.context_win: 
+                threading.Thread(target=self.summary_history, daemon=True).start()
         if stream: return _ask_gen()
         return ''.join(list(_ask_gen())) 
         
@@ -129,7 +141,7 @@ class ToolClient:
 
     def chat(self, messages, tools=None):
         full_prompt = self._build_protocol_prompt(messages, tools)      
-        print("Full prompt length:", len(full_prompt))
+        print("Full prompt length:", len(full_prompt), 'chars')
         gen = self.raw_api(full_prompt, stream=True)
         raw_text = ''
         for chunk in gen:
@@ -152,7 +164,7 @@ class ToolClient:
 1. **思考**: 在 `<thinking>` 标签中先进行思考，分析现状和策略。
 2. **总结**: 在 `<summary>` 中输出*极为简短*的高度概括的单行（<30字）物理快照，包括上次工具调用结果获取的新信息+本次工具调用意图和预期。此内容将进入长期工作记忆，记录关键信息，严禁输出无实际信息增量的描述。
 3. **行动**: 如果需要调用工具，请在回复正文之后输出一个 **<tool_use>块**，然后结束，我会稍后给你返回<tool_result>块。
-   格式: ```<tool_use>\n{{"function": "工具名", "arguments": {{参数}}}}\n</tool_use>\n```
+   格式: ```<tool_use>\n{{"name": "工具名", "arguments": {{参数}}}}\n</tool_use>\n```
 
 ### 可用工具库
 {tools_json}
@@ -204,8 +216,8 @@ class ToolClient:
         if json_str:
             try:
                 data = tryparse(json_str)
-                func_name = data.get('function') or data.get('tool')
-                args = data.get('arguments') or data.get('args')
+                func_name = data.get('name') or data.get('function') or data.get('tool')
+                args = data.get('arguments') or data.get('args') or data.get('params') or data.get('parameters')
                 if args is None: args = data
                 if func_name: tool_calls = [MockToolCall(func_name, args)]
             except json.JSONDecodeError:

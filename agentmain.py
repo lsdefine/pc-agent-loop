@@ -79,11 +79,13 @@ class GeneraticAgent:
                         raw_query, handler, TOOLS_SCHEMA, max_turns=25)
                         
             try:
-                full_response = ""
+                full_response = ""; last_pos = 0
                 for chunk in gen:
                     if self.stop_sig: break
                     full_response += chunk
-                    self.display_queue.put({'next': f'{full_response}', 'source': source})
+                    if len(full_response) - last_pos > 50:
+                        self.display_queue.put({'next': f'{full_response}', 'source': source})
+                        last_pos = len(full_response)
                 if '</summary>' in full_response: full_response = full_response.replace('</summary>', '</summary>\n\n')
                 if '</file_content>' in full_response: full_response = re.sub(r'<file_content>\s*(.*?)\s*</file_content>', r'\n````\n<file_content>\n\1\n</file_content>\n````', full_response, flags=re.DOTALL)
                 self.display_queue.put({'done': full_response, 'source': source})
