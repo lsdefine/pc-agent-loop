@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from agent_loop import BaseHandler, StepOutcome, try_call_generator
 
-def code_run(code, code_type="python", timeout=60, cwd=None, code_cwd=None):
+def code_run(code, code_type="python", timeout=60, cwd=None, code_cwd=None, stop_signal=[]):
     """代码执行器
     python: 运行复杂的 .py 脚本（文件模式）
     powershell/bash: 运行单行指令（命令模式）
@@ -52,11 +52,14 @@ def code_run(code, code_type="python", timeout=60, cwd=None, code_cwd=None):
         t.start()
 
         while t.is_alive():
-            if time.time() - start_t > timeout:
+            istimeout = time.time() - start_t > timeout
+            if istimeout or len(stop_signal) > 0:
                 process.kill()
-                full_stdout.append("\n[Timeout Error] 超时强制终止")
+                print("[Debug] Process killed due to timeout or stop signal.")
+                if istimeout: full_stdout.append("\n[Timeout Error] 超时强制终止")
+                else: full_stdout.append("\n[Stopped] 用户强制终止")
                 break
-            time.sleep(0.2)
+            time.sleep(1)
 
         t.join(timeout=1)
         exit_code = process.poll()
@@ -242,6 +245,7 @@ class GenericAgentHandler(BaseHandler):
         self.focus = ""
         self.cwd = cwd
         self.history_info = last_history if last_history else []
+        self.code_stop_signal = []
 
     def _get_abs_path(self, path):
         if not path: return ""
@@ -274,7 +278,7 @@ class GenericAgentHandler(BaseHandler):
         raw_path = os.path.join(self.cwd, args.get("cwd", './'))
         cwd = os.path.normpath(os.path.abspath(raw_path))
         code_cwd = os.path.normpath(self.cwd)
-        result = yield from code_run(code, code_type, timeout, cwd, code_cwd=code_cwd)
+        result = yield from code_run(code, code_type, timeout, cwd, code_cwd=code_cwd, stop_signal=self.code_stop_signal)
         next_prompt = self._get_anchor_prompt() + warning
         return StepOutcome(result, next_prompt=next_prompt)
     
@@ -315,7 +319,7 @@ class GenericAgentHandler(BaseHandler):
         print("Web Execute JS Result:", smart_format(result))
         yield f"JS 执行结果:\n{smart_format(result)}\n"
         next_prompt = self._get_anchor_prompt()
-        return StepOutcome(result, next_prompt=next_prompt)
+        return StepOutcome(smart_format(result, max_str_len=5000), next_prompt=next_prompt)
     
     def do_file_patch(self, args, response):
         path = self._get_abs_path(args.get("path", ""))

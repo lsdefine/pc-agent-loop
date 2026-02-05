@@ -26,7 +26,7 @@ class BaseHandler:
             return ret
         else:
             yield f"❌ 未知工具: {tool_name}\n"
-            return StepOutcome(None, "未知工具", "ERROR")
+            return StepOutcome(None, next_prompt=f"未知工具 {tool_name}", should_exit=False)
 
 def json_default(o):
     if isinstance(o, set): return list(o)

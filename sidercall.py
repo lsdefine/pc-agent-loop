@@ -12,12 +12,15 @@ class SiderLLMSession:
         self.default_model = default_model
     def ask(self, prompt, model=None, stream=False):
         if model is None: model = self.default_model
-        if len(prompt) > 29000: 
+        if len(prompt) > 28000: 
             print(f"[Warn] Prompt too long ({len(prompt)} chars), truncating.")
-            prompt = prompt[-29000:]
+            prompt = prompt[-28000:]
         gen = self._core.chat(prompt, model)
-        if stream: return gen
-        return ''.join(list(gen))
+        full_text = ''.join(list(gen))
+        if stream:
+            def wrap_as_stream(): yield full_text
+            return wrap_as_stream()  # gen有奇怪的死循环行为，sider足够快
+        return full_text   
   
 class LLMSession:
     def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=12000):
@@ -74,7 +77,7 @@ class LLMSession:
             keep = 0; tok = 0
             for m in reversed(self.raw_msgs):
                 l = len(str(m))//4
-                if tok + l > self.context_win//3: break
+                if tok + l > self.context_win*0.2: break
                 tok += l; keep += 1
             keep = max(2, keep)
             old, self.raw_msgs = self.raw_msgs[:-keep], self.raw_msgs[-keep:]
@@ -84,28 +87,29 @@ class LLMSession:
             messages += [{"role":"user", "content":p}]
             msg_lens = [1000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages]
             summary = ''.join(list(self.raw_ask(messages, model, temperature=0.1)))
-            print('[Debug] Summary length:', len(summary)//4, '; Context lengths:', str(msg_lens))
+            print('[Debug] Summary length:', len(summary)//4, '; Orig context lengths:', str(msg_lens))
             if not summary.startswith("Error:"): 
                 self.raw_msgs.insert(0, {"role":"assistant", "prompt":"Prev summary:\n"+summary, "image":None})
             else: self.raw_msgs = old + self.raw_msgs   # 不做了，下次再做
 
     def ask(self, prompt, model=None, image_base64=None, stream=False):
         if model is None: model = self.model
-        self.raw_msgs.append({"role": "user", "prompt": prompt, "image": image_base64})
-        messages = self.make_messages(self.raw_msgs[:-1], omit_images=True)
-        messages += self.make_messages([self.raw_msgs[-1]], omit_images=False)
-        msg_lens = [1000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages]
-        total_len = sum(msg_lens)   # estimate token count
         def _ask_gen():
             content = ''
             with self.lock:
-                gen = self.raw_ask(messages, model)
-                for chunk in gen:
-                    content += chunk; yield chunk
+                self.raw_msgs.append({"role": "user", "prompt": prompt, "image": image_base64})
+                messages = self.make_messages(self.raw_msgs[:-1], omit_images=True)
+                messages += self.make_messages([self.raw_msgs[-1]], omit_images=False)
+                msg_lens = [1000 if isinstance(m["content"], list) else len(str(m["content"]))//4 for m in messages]
+                total_len = sum(msg_lens)   # estimate token count
+            gen = self.raw_ask(messages, model)
+            for chunk in gen:
+                content += chunk; yield chunk
             if not content.startswith("Error:"):
                 self.raw_msgs.append({"role": "assistant", "prompt": content, "image": None})
             if total_len > 5000: print(f"[Debug] Whole context length {total_len} {str(msg_lens)}.")
             if total_len > self.context_win: 
+                yield '[NextWillSummary]'
                 threading.Thread(target=self.summary_history, daemon=True).start()
         if stream: return _ask_gen()
         return ''.join(list(_ask_gen())) 
@@ -142,12 +146,18 @@ class ToolClient:
     def chat(self, messages, tools=None):
         full_prompt = self._build_protocol_prompt(messages, tools)      
         print("Full prompt length:", len(full_prompt), 'chars')
-        gen = self.raw_api(full_prompt, stream=True)
-        raw_text = ''
-        for chunk in gen:
-            raw_text += chunk; yield chunk
         with open('model_responses.txt', 'a', encoding='utf-8', errors="replace") as f:
-            f.write(f"=== Prompt ===\n{full_prompt}\n=== Response ===\n{raw_text}\n\n")
+            f.write(f"=== Prompt ===\n{full_prompt}\n")
+        gen = self.raw_api(full_prompt, stream=True)
+        raw_text = ''; summarytag = '[NextWillSummary]'
+        for chunk in gen:
+            raw_text += chunk; 
+            if chunk != summarytag: yield chunk
+        print('Complete response received.')
+        if raw_text.endswith(summarytag):
+            self.last_tools = ''; raw_text = raw_text[:-len(summarytag)]
+        with open('model_responses.txt', 'a', encoding='utf-8', errors="replace") as f:
+            f.write(f"=== Response ===\n{raw_text}\n\n")
         return self._parse_mixed_response(raw_text)
 
     def _build_protocol_prompt(self, messages, tools):

@@ -47,14 +47,18 @@ class GeneraticAgent:
         self.llm_no = 0
         self.stop_sig = False
         self.current_source = 'none'
+        self.handler = None
 
     def next_llm(self):
         self.llm_no = (self.llm_no + 1) % len(self.llmclient.raw_apis)
         self.llmclient.last_tools = ''
 
     def abort(self):
+        print('About to abort current task...')
         if not self.is_running: return
         self.stop_sig = True
+        if self.handler is not None: 
+            self.handler.code_stop_signal.append(1)
 
     def put_task(self, query, source="user"):
         self.display_queue.queue.clear()
@@ -73,7 +77,7 @@ class GeneraticAgent:
             
             sys_prompt = get_system_prompt()
             handler = GenericAgentHandler(None, self.history, './temp')
-
+            self.handler = handler
             self.llmclient.raw_api = self.llmclient.raw_apis[self.llm_no]
             gen = agent_runner_loop(self.llmclient, sys_prompt, 
                         raw_query, handler, TOOLS_SCHEMA, max_turns=25)
@@ -81,7 +85,8 @@ class GeneraticAgent:
             try:
                 full_response = ""; last_pos = 0
                 for chunk in gen:
-                    if self.stop_sig: break
+                    if self.stop_sig: 
+                        self.abort(); break
                     full_response += chunk
                     if len(full_response) - last_pos > 50:
                         self.display_queue.put({'next': f'{full_response}', 'source': source})
