@@ -34,7 +34,7 @@ class GeneraticAgent:
                                     ["gemini-3.0-flash", "claude-haiku-4.5", "kimi-k2"]]
         if oai_apikey: llm_sessions += [LLMSession(api_key=oai_apikey, api_base=oai_apibase)]
         if len(llm_sessions) > 0: 
-            llmclient = ToolClient([x.ask for x in llm_sessions], auto_save_tokens=True)
+            llmclient = ToolClient(llm_sessions, auto_save_tokens=True)
             self.llmclient = llmclient
         else:
             self.llmclient = None
@@ -50,18 +50,20 @@ class GeneraticAgent:
         self.handler = None
 
     def next_llm(self):
-        self.llm_no = (self.llm_no + 1) % len(self.llmclient.raw_apis)
+        self.llm_no = (self.llm_no + 1) % len(self.llmclient.backends)
         self.llmclient.last_tools = ''
 
     def abort(self):
-        print('About to abort current task...')
+        print('Abort current task...')
         if not self.is_running: return
         self.stop_sig = True
         if self.handler is not None: 
             self.handler.code_stop_signal.append(1)
 
     def put_task(self, query, source="user"):
-        self.display_queue.queue.clear()
+        while self.display_queue.qsize() > 0:
+            try: self.display_queue.get_nowait()
+            except queue.Empty: break
         self.task_queue.put({"query": query, "source": source})
 
     def run(self):
@@ -78,7 +80,7 @@ class GeneraticAgent:
             sys_prompt = get_system_prompt()
             handler = GenericAgentHandler(None, self.history, './temp')
             self.handler = handler
-            self.llmclient.raw_api = self.llmclient.raw_apis[self.llm_no]
+            self.llmclient.backend = self.llmclient.backends[self.llm_no]
             gen = agent_runner_loop(self.llmclient, sys_prompt, 
                         raw_query, handler, TOOLS_SCHEMA, max_turns=25)
                         

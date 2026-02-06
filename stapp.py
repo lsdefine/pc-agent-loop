@@ -27,13 +27,12 @@ if "idle_buf" not in st.session_state: st.session_state.idle_buf = ""
 if "messages" not in st.session_state: st.session_state.messages = []
 
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
 @st.fragment
 def render_llm_switcher():
     current_idx = agent.llm_no
-    st.caption(f"LLM Core: {current_idx}")
+    st.caption(f"LLM Core: {current_idx}: {agent.llmclient.backends[current_idx].default_model}", help="点击切换备用链路")
     if st.button("切换备用链路"):
         agent.next_llm()
         st.rerun(scope="fragment")

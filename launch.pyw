@@ -19,11 +19,11 @@ def get_screen_width():
         # 如果不是 Windows 或者出错了，返回一个兜底值 (比如 1920)
         return 1920
 
-def start_streamlit():
+def start_streamlit(port):
     global proc
     cmd = [
         sys.executable, "-m", "streamlit", "run", "stapp.py", 
-        "--server.port", "8501", 
+        "--server.port", str(port), 
         "--server.headless", "true",
         "--theme.base", "dark" #以此默认开启暗黑模式，更有极客感
     ]
@@ -31,7 +31,8 @@ def start_streamlit():
     atexit.register(proc.kill)
 
 if __name__ == '__main__':
-    t = threading.Thread(target=start_streamlit, daemon=True)
+    port = sys.argv[1] if len(sys.argv) > 1 else "8501"
+    t = threading.Thread(target=start_streamlit, args=(port,), daemon=True)
     t.start()
     if os.name == 'nt':
         screen_width = get_screen_width()
@@ -40,7 +41,7 @@ if __name__ == '__main__':
     time.sleep(2) 
     webview.create_window(
         title='GenericAgent', 
-        url='http://localhost:8501',
+        url=f'http://localhost:{port}',
         width=WINDOW_WIDTH, 
         height=WINDOW_HEIGHT,
         x=x_pos, y=TOP_PADDING,

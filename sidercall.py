@@ -1,14 +1,22 @@
 import os, json, re, time, requests, sys, threading
 
-try: from mykey import sider_cookie
-except ImportError: sider_cookie = ""
-try: from mykey import oai_apikey, oai_apibase, oai_model
-except ImportError: oai_apikey = oai_apibase = oai_model = ""
+try: import mykey
+except: raise Exception('[ERROR] mykey.py not found, please copy mykey_template.py to mykey.py and fill your LLM backend.')
+
+def get_config(name, default=""): return getattr(mykey, name, default)
+
+sider_cookie = get_config("sider_cookie")
+oai_apikey = get_config("oai_apikey")
+oai_apibase = get_config("oai_apibase")
+oai_model = get_config("oai_model")
+google_api_key = get_config("google_api_key")
+proxy = get_config("proxy", 'http://127.0.0.1:2082')
+proxies = {"http": proxy, "https": proxy} if proxy else None
 
 class SiderLLMSession:
     def __init__(self, default_model="gemini-3.0-flash"):
         from sider_ai_api import Session
-        self._core = Session(cookie=sider_cookie, proxies={'https':'127.0.0.1:2082'})   
+        self._core = Session(cookie=sider_cookie, proxies=proxies)   
         self.default_model = default_model
     def ask(self, prompt, model=None, stream=False):
         if model is None: model = self.default_model
@@ -19,6 +27,34 @@ class SiderLLMSession:
         if stream: return iter([full_text])   # gen有奇怪的空回复或死循环行为，sider足够快
         return full_text   
   
+class GeminiSession:
+    def __init__(self, api_key=None, default_model="gemini-2.0-flash-001", proxy=proxy):
+        self.api_key = api_key or google_api_key
+        if not self.api_key: raise ValueError("google_api_key 未配置或为空，请在 mykey.py 中设置")
+        self.default_model = default_model
+        self.proxies = {"http":proxy, "https":proxy} if proxy else None
+    def ask(self, prompt, model=None, stream=False):
+        if model is None: model = self.default_model
+        url = f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={self.api_key}"
+        headers = {"Content-Type":"application/json"}
+        data = {"contents":[{"role":"user","parts":[{"text":prompt}]}]}
+        try:
+            kw = {"headers":headers, "json":data, "timeout":60, 'proxies': self.proxies}
+            r = requests.post(url, **kw)
+        except Exception as e:
+            return f"[GeminiError] request failed: {e}"
+        if r.status_code != 200:
+            body = r.text[:500].replace("\n"," ")
+            return f"[GeminiError] HTTP {r.status_code}: {body}"
+        try:
+            obj = r.json(); cands = obj.get("candidates") or []
+            if not cands: return "[GeminiError] empty candidates"
+            parts = (cands[0].get("content") or {}).get("parts") or []
+            full_text = "".join(p.get("text","") for p in parts)
+        except Exception as e:
+            return f"[GeminiError] invalid response format: {e}"
+        return iter([full_text]) if stream else full_text
+  
 class LLMSession:
     def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=12000):
         self.api_key = api_key
@@ -26,11 +62,11 @@ class LLMSession:
         self.raw_msgs = []
         self.messages = []
         self.context_win = context_win
-        self.model = model
+        self.default_model = model
         self.lock = threading.Lock()
 
     def raw_ask(self, messages, model=None, temperature=0.5):
-        if model is None: model = self.model
+        if model is None: model = self.default_model
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json", "Accept": "text/event-stream"}
         payload = {"model": model, "messages": messages, "temperature": temperature, "stream": True}
         try:
@@ -69,7 +105,7 @@ class LLMSession:
         return messages
        
     def summary_history(self, model=None):
-        if model is None: model = self.model
+        if model is None: model = self.default_model
         with self.lock:
             keep = 0; tok = 0
             for m in reversed(self.raw_msgs):
@@ -90,7 +126,7 @@ class LLMSession:
             else: self.raw_msgs = old + self.raw_msgs   # 不做了，下次再做
 
     def ask(self, prompt, model=None, image_base64=None, stream=False):
-        if model is None: model = self.model
+        if model is None: model = self.default_model
         def _ask_gen():
             content = ''
             with self.lock:
@@ -132,10 +168,10 @@ class MockResponse:
         return f"<MockResponse thinking={bool(self.thinking)}, content='{self.content}', tools={bool(self.tool_calls)}>"
 
 class ToolClient:
-    def __init__(self, raw_api_func, auto_save_tokens=False):
-        if isinstance(raw_api_func, list): self.raw_apis = raw_api_func
-        else: self.raw_apis = [raw_api_func]
-        self.raw_api = self.raw_apis[0]
+    def __init__(self, backends, auto_save_tokens=False):
+        if isinstance(backends, list): self.backends = backends
+        else: self.backends = [backends]
+        self.backend = self.backends[0]
         self.auto_save_tokens = auto_save_tokens
         self.last_tools = ''
         self.total_cd_tokens = 0
@@ -145,7 +181,7 @@ class ToolClient:
         print("Full prompt length:", len(full_prompt), 'chars')
         with open('model_responses.txt', 'a', encoding='utf-8', errors="replace") as f:
             f.write(f"=== Prompt ===\n{full_prompt}\n")
-        gen = self.raw_api(full_prompt, stream=True)
+        gen = self.backend.ask(full_prompt, stream=True)
         raw_text = ''; summarytag = '[NextWillSummary]'
         for chunk in gen:
             raw_text += chunk; 
@@ -243,19 +279,26 @@ def tryparse(json_str):
         return json.loads(json_str[:-1])
 
 if __name__ == "__main__":
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    try: from mykey import sider_cookie
-    except ImportError: sider_cookie = ""
-    try: from mykey import oai_apikey, oai_apibase, oai_model
-    except ImportError: oai_apikey = oai_apibase = oai_model = ""
+    import sys, os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        import mykey
+    except ImportError:
+        class MockMyKey: pass
+        mykey = MockMyKey()
+    
+    sider_cookie = get_config("sider_cookie")
+    oai_apikey = get_config("oai_apikey")
+    oai_apibase = get_config("oai_apibase")
+    oai_model = get_config("oai_model")
+    google_api_key = get_config("google_api_key")
 
-    llmclient = ToolClient(LLMSession(api_key=oai_apikey, api_base=oai_apibase, model=oai_model).ask)
-    print(llmclient.raw_api("Hello, world!", stream=False))
+    llmclient = ToolClient(GeminiSession(api_key=google_api_key, proxy='127.0.0.1:2082').ask)
+    #llmclient = ToolClient(LLMSession(api_key=oai_apikey, api_base=oai_apibase, model=oai_model).ask)
     #llmclient = ToolClient(SiderLLMSession().ask)
     def get_final(gen):
         try:
-            while True: 
-                print('mid:', next(gen))
+            while True: print('mid:', next(gen))
         except StopIteration as e:
             return e.value
         
