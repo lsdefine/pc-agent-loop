@@ -15,11 +15,8 @@ class SiderLLMSession:
         if len(prompt) > 28000: 
             print(f"[Warn] Prompt too long ({len(prompt)} chars), truncating.")
             prompt = prompt[-28000:]
-        gen = self._core.chat(prompt, model)
-        full_text = ''.join(list(gen))
-        if stream:
-            def wrap_as_stream(): yield full_text
-            return wrap_as_stream()  # gen有奇怪的死循环行为，sider足够快
+        full_text = self._core.chat(prompt, model, stream=False)
+        if stream: return iter([full_text])   # gen有奇怪的空回复或死循环行为，sider足够快
         return full_text   
   
 class LLMSession:

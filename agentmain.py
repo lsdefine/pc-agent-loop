@@ -85,8 +85,7 @@ class GeneraticAgent:
             try:
                 full_response = ""; last_pos = 0
                 for chunk in gen:
-                    if self.stop_sig: 
-                        self.abort(); break
+                    if self.stop_sig: break
                     full_response += chunk
                     if len(full_response) - last_pos > 50:
                         self.display_queue.put({'next': f'{full_response}', 'source': source})
@@ -103,4 +102,6 @@ class GeneraticAgent:
                 self.stop_sig = False
                 self.current_source = 'none'
                 self.task_queue.task_done()
+                if self.handler is not None: self.handler.code_stop_signal.append(1)
+
     

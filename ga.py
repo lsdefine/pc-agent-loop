@@ -410,7 +410,7 @@ class GenericAgentHandler(BaseHandler):
         # 1. 空回复保护：要求模型重新生成内容或调用工具
         if not response or not content.strip():
             yield "[Warn] LLM returned an empty response. Retrying...\n"
-            next_prompt = "[System] 检测到空回复，请重新生成内容或调用工具。"
+            next_prompt = "[System] 回复为空，请重新生成内容或调用工具。"
             return StepOutcome({}, next_prompt=next_prompt, should_exit=False)
         # 2. 检测“包含较大代码块但未调用工具”的情况
         # 这里通过三引号代码块 + 最少字符数的方式粗略判断“大段代码”
