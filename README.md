@@ -12,12 +12,12 @@ This agent is not limited to a fixed set of features. Its true power lies in its
 
 - **Self-Discovery via Long-Term Memory**: 
   - The agent maintains a "Global Memory" (L2 Facts) to store system paths, credentials, and environmental status.
-  - It can autonomously retrieve context-aware SOPs (Standard Operating Procedures) to handle specialized tasks like WeChat database decryption or Gmail API operations.
+  - It can autonomously retrieve context-aware SOPs (Standard Operating Procedures) to handle specialized tasks like Instant Messaging (IM) database recovery or Gmail API operations.
 - **Dynamic Tool Manufacturing**:
   - Through `code_run`, the agent can write and execute arbitrary Python scripts to interface with new hardware or software.
   - Examples of self-integrated capabilities include:
     - **Deep Web Interaction**: JS injection via Tampermonkey for UI automation.
-    - **Digital Forensics**: Querying SQLCipher-encrypted databases (e.g., WeChat v4.0+).
+    - **Digital Forensics**: Querying SQLCipher-encrypted databases (e.g., encrypted local storage of IM apps).
     - **Vision-Driven Logic**: Understanding UI states through local vision APIs (`ask_vision`).
     - **System Indexing**: Utilizing **Everything CLI (es.exe)** for instant file discovery across the entire OS.
     - **Android Automation**: ADB-based control for mobile device interaction.
@@ -35,7 +35,7 @@ This agent is not limited to a fixed set of features. Its true power lies in its
 "Scan my local memory for recent SOPs regarding mail processing, then find and download my latest reimbursement receipts from Gmail."
 
 ### 2. Complex Multi-Step Automation
-"Locate the WeChat database, decrypt it to find messages about 'Project X', and summarize the findings into a PDF report."
+"Locate a specific encrypted IM database, decrypt it to find messages about 'Project X', and summarize the findings into a PDF report."
 
 ### 3. Real-Time System Intervention
 "Monitor my cloud dashboard via the browser; if the status turns red, execute a local PowerShell script to restart the service and notify me."
@@ -65,12 +65,12 @@ pc-agent-loop 是一个极致简约的 PC 级自主 AI Agent 框架。它通过�
 
 - **基于长期记忆的自我发现**: 
   - Agent 维护“全局记忆”（L2 Facts）以存储系统路径、凭据和环境状态。
-  - 能够自主检索上下文相关的 SOP（标准作业程序），以处理微信数据库解密、Gmail API 操作等专业任务。
+  - 能够自主检索上下文相关的 SOP（标准作业程序），以处理即时通讯软件（IM）数据库恢复、Gmail API 操作等专业任务。
 - **动态工具制造**:
   - 通过 `code_run`，Agent 可以编写并执行 Python/PowerShell 脚本来对接新硬件或软件。
   - **自集成能力示例**:
     - **深度 Web 自动化**: 通过 Tampermonkey 进行 JS 注入实现 UI 自动化。
-    - **数字取证**: 查询 SQLCipher 加密的数据库（如微信 v4.0+）。
+    - **数字取证**: 查询 SQLCipher 加密的数据库（如加密的本地 IM 数据库）。
     - **视觉驱动逻辑**: 通过本地视觉 API (`ask_vision`) 理解 UI 状态。
     - **系统全盘索引**: 利用 **Everything CLI (es.exe)** 实现毫秒级文件检索。
     - **安卓自动化**: 基于 ADB 控制移动设备交互。
@@ -85,7 +85,7 @@ pc-agent-loop 是一个极致简约的 PC 级自主 AI Agent 框架。它通过�
 ## 🛠️ 典型使用场景
 
 1. **环境自适应**: “扫描我的本地记忆寻找邮件处理 SOP，然后从 Gmail 下载最新的报销收据。”
-2. **跨模块协作**: “定位微信数据库并解密，查找关于‘项目 X’的消息，并汇总成 PDF 报告。”
+2. **跨模块协作**: “定位特定的加密 IM 数据库并解密，查找关于‘项目 X’的消息，并汇总成 PDF 报告。”
 3. **系统干预**: “监控云端控制台，若状态异常则执行本地脚本重启服务并邮件通知我。”
 
 ## 🧩 7 大核心原子工具
