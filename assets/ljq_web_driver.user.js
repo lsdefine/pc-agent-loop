@@ -294,14 +294,16 @@
             return { error: '没有可执行的代码' };
         }
         updateStatus('exec');
-
+        const _open = window.open;
+        window.open = (url, target, features) => {
+            GM_openInTab(url, { active: true });
+            return { success: true, url: url };
+        };
         try {
             const jsCode = data.code.trim();
             const lines = jsCode.split(/\r?\n/).filter(l => l.trim());
             const lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : '';
-
             if (lastLine.startsWith('return')) {
-                // 最后一行包含 return 语句，使用 Function 构造器
                 result = (new Function(jsCode))();
             } else {
                 try {
@@ -309,16 +311,21 @@
                 } catch (e) {
                     if (isIllegalReturnError(e)) {
                         result = (new Function(jsCode))();
-                    } else {
-                        throw e; 
-                    }
+                    } else throw e; 
                 }
             }
             const processedResult = smartProcessResult(result);
+            if (result instanceof Promise) {
+                result.finally(() => window.open = _open);
+                return { result: processedResult };
+            }
             return { result: processedResult }; 
-
         } catch (execError) {
-            return { error: execError }; // 返回错误信息
+            return { error: execError }; 
+        } finally {
+            if (!(result instanceof Promise)) {
+                setTimeout(() => window.open = _open, 100);
+            }   
         }
     }
 

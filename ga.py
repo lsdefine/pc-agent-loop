@@ -448,7 +448,8 @@ class GenericAgentHandler(BaseHandler):
 2. 若无高价值新事实，那就不更新任何内容。
 3. 尽量先查看现有全局记忆形式，仅作少量修改不要影响其余部分。insight也要同步更新全局记忆的短印象来提醒存在性。
 4. 优先使用file_read和file_patch来保证少量修改。
-5. 请先阅读L0的记忆更新SOP来确保了解修改规则。''' + get_global_memory()
+5. 必须先阅读L0的记忆更新SOP来确保了解修改规则。
+6. 必须先阅读L0的记忆更新SOP来确保了解修改规则，这是重复强调。''' + get_global_memory()
         yield "[Info] Start distilling good memory for long-term storage.\n"
         return StepOutcome({"status": "success"}, next_prompt=prompt)
 
