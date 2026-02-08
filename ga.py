@@ -443,15 +443,19 @@ class GenericAgentHandler(BaseHandler):
     def do_conclude_and_reflect(self, args, response):
         '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。
         '''
-        prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实与用户偏好，更新至全局记忆。
-1. 严禁记录任何任务特定中间执行过程或临时变量经验，那是过程记忆不是全局记忆。
-2. 若无高价值新事实，那就不更新任何内容。
-3. 尽量先查看现有全局记忆形式，仅作少量修改不要影响其余部分。insight也要同步更新全局记忆的短印象来提醒存在性。
-4. 优先使用file_read和file_patch来保证少量修改。
-5. 必须先阅读L0的记忆更新SOP来确保了解修改规则。
-6. 必须先阅读L0的记忆更新SOP来确保了解修改规则，这是重复强调。''' + get_global_memory()
+        prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实、用户偏好、重要步骤，更新记忆。
+本工具是标记开启结算过程，若已在更新记忆过程或没有值得记忆的点，忽略本次调用。
+**提取行动验证成功的信息**：
+- **环境事实**（路径/凭证/配置）→ `file_patch` 更新 L2，同步 L1
+- **复杂任务经验**（关键坑点/前置条件/重要步骤）→ L3 精简 SOP（只记你被坑得多次重试的核心要点）
+**禁止**：临时变量、具体推理过程、未验证信息、通用常识、你可以轻松复现的细节。
+**操作**：严格遵循提供的L0的记忆更新SOP。先 `file_read` 看现有 → 判断类型 → 最小化更新 → 无新内容跳过，保证对记忆库最小局部修改。\n
+''' + get_global_memory()
         yield "[Info] Start distilling good memory for long-term storage.\n"
-        return StepOutcome({"status": "success"}, next_prompt=prompt)
+        path = './memory/memory_management_sop.md'
+        if os.path.exists(path): result = file_read(path, show_linenos=False)
+        else: result = "Memory Management SOP not found. Do not update memory."
+        return StepOutcome(result, next_prompt=prompt)
 
     def _get_anchor_prompt(self):
         h_str = "\n".join(self.history_info[-20:])
