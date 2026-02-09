@@ -10,4 +10,4 @@
 
 [DIRECTORY]
 - L2_Facts: ../memory/global_mem.txt (Method: 按 TOPIC 检索索引 -> file_read 对应条目)
-- L3_SOPs: ../memory/ (Method: ls 查看文件列表 -> 读取具体 .md/.py)
+- L3_SOPs: ../memory/ (Method: os.listdir查看文件列表 -> 读取具体 .md/.py)

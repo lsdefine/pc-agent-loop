@@ -91,9 +91,12 @@ def scan_memory(pid, pattern, context_size=256, mode='auto', llm_mode=False):
                         matched_data = inst.instances[0].matched_data
                         base = mbi.BaseAddress if mbi.BaseAddress else 0
                         if llm_mode:
-                            results.append(format_llm_context(data, offset, base))
+                            results.append(format_llm_context(data, offset, base, length=context_size))
                         else:
-                            results.append(f"Addr: {hex(base+offset)}\nHex: {data[max(0,offset-16):offset+32].hex()}")
+                            # Expand context based on context_size to capture full KEY+SALT
+                            start = max(0, offset - context_size)
+                            end = min(len(data), offset + len(matched_data) + context_size)
+                            results.append(f"Addr: {hex(base+offset)}\nHex: {data[start:end].hex()}")
 
         # Update address using the region size
         next_addr = (mbi.BaseAddress if mbi.BaseAddress else 0) + mbi.RegionSize

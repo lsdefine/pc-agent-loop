@@ -193,15 +193,15 @@ def file_patch(path: str, old_content: str, new_content: str):
         with open(path, 'r', encoding='utf-8') as f: full_text = f.read()
         # 检查唯一性
         count = full_text.count(old_content)
-        if count == 0: return {"status": "error", "msg": "未找到匹配的旧文本块，请检查空格、缩进和换行是否完全一致。"}
-        if count > 1: return {"status": "error", "msg": f"找到 {count} 处匹配，请提供更长的旧文本块以确保唯一性。"}
+        if count == 0: return {"status": "error", "msg": "未找到匹配的旧文本块，建议：先用 file_read 确认当前内容，再分小段进行 patch。若多次失败则询问用户，严禁自行使用 overwrite 或代码替换。"}
+        if count > 1: return {"status": "error", "msg": f"找到 {count} 处匹配，无法确定唯一位置。请提供更长、更具体的旧文本块以确保唯一性。建议：包含上下文行来增强特征，或分小段逐个修改。"}
         updated_text = full_text.replace(old_content, new_content)
         with open(path, 'w', encoding='utf-8') as f: f.write(updated_text)
         return {"status": "success", "msg": "文件局部修改成功"}
     except Exception as e:
         return {"status": "error", "msg": str(e)}
 
-def file_read(path, start=1, keyword=None, count=100, show_linenos=True):
+def file_read(path, start=1, keyword=None, count=200, show_linenos=True):
     L_MAX = max(100, 1024000//count); TAG = " ... [TRUNCATED]"
     try:
         with open(path, 'r', encoding='utf-8', errors='replace') as f:
@@ -474,7 +474,7 @@ def get_global_memory():
         prompt += f'But prefer use relative paths (./ = cwd) to locate.\n'
         prompt += 'MEM_RULE: Insight is the index. Sync Insight whenever Facts change. For details, read Facts.\n'
         prompt += "EXT: ../memory/ may contain other task-specific memories.\n"
-        prompt += structure + '\nglobal_mem_insight.txt:\n'
+        prompt += structure + '\n../memory/global_mem_insight.txt:\n'
         prompt += insight + "\n"
     except FileNotFoundError: pass
     return prompt
