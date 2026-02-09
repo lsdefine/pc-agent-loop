@@ -36,8 +36,9 @@ model_responses.txt
 *.zip
 
 # 存储敏感信息的记忆文件夹（除了公开的 SOP）
-memory/
+memory/*
 !memory/memory_management_sop.md
 
 # Allow tracking of specific SOPs
 !memory/web_setup_sop.md
+!memory/autonomous_operation_sop.md
