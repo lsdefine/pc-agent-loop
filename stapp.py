@@ -23,10 +23,16 @@ agent = init()
 
 st.title("🖥️ Cowork")
 
+if 'autonomous_enabled' not in st.session_state:
+    st.session_state.autonomous_enabled = False
+
 @st.fragment
-def render_llm_switcher():
+def render_sidebar():
     current_idx = agent.llm_no
     st.caption(f"LLM Core: {current_idx}: {agent.llmclient.backends[current_idx].default_model}", help="点击切换备用链路")
+    last_reply_time = st.session_state.get('last_reply_time', 0)
+    if last_reply_time > 0:
+        st.caption(f"空闲时间：{int(time.time()) - last_reply_time}秒", help="当超过30分钟未收到回复时，系统会自动任务")
     if st.button("切换备用链路"):
         agent.next_llm()
         st.rerun(scope="fragment")
@@ -36,7 +42,25 @@ def render_llm_switcher():
     if st.button("重新注入System Prompt"):
         agent.llmclient.last_tools = ''
         st.toast("下次将重新注入System Prompt")
-with st.sidebar: render_llm_switcher()
+    
+    st.divider()
+    if st.button("开始空闲自主行动"):
+        st.session_state.last_reply_time = int(time.time()) - 1800
+        st.toast("已将上次回复时间设为1800秒前")
+        st.rerun()
+    if st.session_state.autonomous_enabled:
+        if st.button("⏸️ 禁止自主行动"):
+            st.session_state.autonomous_enabled = False
+            st.toast("⏸️ 已禁止自主行动")
+            st.rerun(scope="fragment")
+        st.caption("🟢 自主行动运行中，会在你离开它30分钟后自动进行")
+    else:
+        if st.button("▶️ 允许自主行动", type="primary"):
+            st.session_state.autonomous_enabled = True
+            st.toast("✅ 已允许自主行动")
+            st.rerun(scope="fragment")
+        st.caption("🔴 自主行动已停止")
+with st.sidebar: render_sidebar()
 
 
 def agent_backend_stream(prompt):
@@ -67,5 +91,6 @@ if prompt := st.chat_input("请输入指令"):
     st.session_state.messages.append({"role": "assistant", "content": response})
     st.session_state.last_reply_time = int(time.time())
 
-st.markdown(f"""<div id="last-reply-time" style="display:none">{st.session_state.get('last_reply_time', int(time.time()))}</div>""", unsafe_allow_html=True)
+if st.session_state.autonomous_enabled:
+    st.markdown(f"""<div id="last-reply-time" style="display:none">{st.session_state.get('last_reply_time', int(time.time()))}</div>""", unsafe_allow_html=True)
 

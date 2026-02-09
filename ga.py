@@ -241,8 +241,8 @@ class GenericAgentHandler(BaseHandler):
     '''
     def __init__(self, parent, last_history=None, cwd='./'):
         self.parent = parent
-        self.plan = ""
-        self.focus = ""
+        self.sop_keys = ""
+        self.sop_path = ""
         self.cwd = cwd
         self.history_info = last_history if last_history else []
         self.code_stop_signal = []
@@ -336,8 +336,8 @@ class GenericAgentHandler(BaseHandler):
         需要将要写入的内容放在<file_content>标签内，或者放在代码块中。
         '''
         path = self._get_abs_path(args.get("path", ""))
-        mode = args.get("mode", "overwrite") 
-        action_str = "Appending to" if mode == "append" else "Writing"
+        mode = args.get("mode", "overwrite")  # overwrite/append/prepend
+        action_str = {"prepend": "Prepending to", "append": "Appending to"}.get(mode, "Overwriting")
         yield f"[Action] {action_str} file: {os.path.basename(path)}\n"
 
         def extract_robust_content(text):
@@ -353,10 +353,12 @@ class GenericAgentHandler(BaseHandler):
             return StepOutcome({"status": "error", "msg": "No content found, if you want a blank, you should use code_run"}, next_prompt="\n")
         new_content = blocks
         try:
-            write_mode = 'a' if mode == "append" else 'w'
-            final_content = ("\n" + new_content) if mode == "append" else new_content
-            with open(path, write_mode, encoding="utf-8") as f:
-                f.write(final_content)
+            if mode == "prepend":
+                old = open(path, 'r', encoding="utf-8").read() if os.path.exists(path) else ""
+                open(path, 'w', encoding="utf-8").write(new_content + old)
+            else:
+                with open(path, 'a' if mode == "append" else 'w', encoding="utf-8") as f:
+                    f.write(new_content)
             yield f"[Status] ✅ {mode.capitalize()} 成功 ({len(new_content)} bytes)\n"
             next_prompt = self._get_anchor_prompt()
             return StepOutcome({"status": "success", 'writed_bytes': len(new_content)}, 
@@ -379,24 +381,20 @@ class GenericAgentHandler(BaseHandler):
             tips = '由于设置了show_linenos，以下返回信息为：(行号|)内容 。\n'
             result = tips + result 
         next_prompt = self._get_anchor_prompt()
+        if 'memory' in path or 'sop' in path: 
+            next_prompt += "\nPROTOCOL: 你正在读取记忆或SOP文件，若决定按sop执行请先调用准备执行相关工具，提取sop中的重点内容（特别是靠后的）进入工作记忆。"
         return StepOutcome(result, next_prompt=next_prompt)
     
-    def do_update_plan(self, args, response):
+    def do_update_sop_plan(self, args, response):
+        '''读取完sop后，为整个任务设定后续需要临时记忆的重点。
         '''
-        同步宏观任务进度与战略重心。       
-        【设计意图】：
-        1. 仅在任务涉及多步逻辑（如：先搜索、再重构、后测试）时进行初始拆解。
-        2. 仅在发生重大的方针变更时调用（例如：原定方案 A 物理不可行，需彻底转向方案 B）。
-        3. 严禁用于记录细微的调试步骤或代码纠错。
-        简单任务无需使用。
-        '''
-        new_plan = args.get("plan", "")
-        new_focus = args.get("focus", "")
-        if new_plan: self.plan = new_plan
-        if new_focus: self.focus = new_focus
-        yield f"[Info] Updated plan and focus.\n"
-        yield f"New Plan:\n{self.plan}\n\n"
-        yield f"New Focus:\n{self.focus}\n"
+        sop_keys = args.get("keys", "")
+        sop_path = args.get("sop_path", "")
+        if sop_keys: self.sop_keys = sop_keys
+        if sop_path: self.sop_path = sop_path
+        yield f"[Info] Updated sop_keys and sop_path.\n"
+        yield f"sop_keys:\n{self.sop_keys}\n\n"
+        yield f"sop_path:\n{self.sop_path}\n\n"
         next_prompt = self._get_anchor_prompt()
         return StepOutcome({"status": "success"}, next_prompt=next_prompt)
 
@@ -460,21 +458,23 @@ class GenericAgentHandler(BaseHandler):
     def _get_anchor_prompt(self):
         h_str = "\n".join(self.history_info[-20:])
         prompt = f"\n### [WORKING MEMORY]\n<history>\n{h_str}\n</history>"
+        if self.sop_keys: prompt += f"\n<sop_essentials>{self.sop_keys}</sop_essentials>"
+        if self.sop_path: prompt += f"\n有不清晰的地方请再次读取{self.sop_path}"
         print(prompt)
-        if self.plan: prompt += f"\n<plan>{self.plan}</plan>"
-        if self.focus: prompt += f"\n<focus>{self.focus}</focus>"
         return prompt
 
 def get_global_memory():
     prompt = "\n"
     try:
         with open('memory/global_mem_insight.txt', 'r', encoding='utf-8') as f: insight = f.read()
-        prompt += f"\n[Memory Insight (../memory/global_mem_insight.txt)]\n"
+        with open('assets/insight_fixed_structure.txt', 'r', encoding='utf-8') as f: structure = f.read()
+        prompt += f"\n[Memory]\n"
         prompt += 'IMPORTANT PATHS: ../memory/global_mem.txt (Facts), ../ (Your Code Dir)\n'
         prompt += f'cwd = {os.path.abspath("./temp")}\n'
         prompt += f'But prefer use relative paths (./ = cwd) to locate.\n'
-        prompt += 'MEM_RULE: Insight is the index of Facts. Sync Insight whenever Facts change. For details, read Facts.\n'
+        prompt += 'MEM_RULE: Insight is the index. Sync Insight whenever Facts change. For details, read Facts.\n'
         prompt += "EXT: ../memory/ may contain other task-specific memories.\n"
+        prompt += structure + '\nglobal_mem_insight.txt:\n'
         prompt += insight + "\n"
     except FileNotFoundError: pass
     return prompt

@@ -28,21 +28,58 @@ def start_streamlit(port):
     atexit.register(proc.kill)
 
 def inject(text):
-    """注入输入到 Streamlit"""
     window.evaluate_js(f"""
-        const input = document.querySelector('input[data-testid="stChatInputTextInput"]');
-        if (input) {{
-            input.value = {repr(text)};
-            input.dispatchEvent(new Event('input', {{bubbles: true}}));
-            input.dispatchEvent(new KeyboardEvent('keydown', {{key: 'Enter', keyCode: 13, bubbles: true}}));
+        const textarea = document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+        if (textarea) {{
+            // 1. 用原生 setter 设置值（绕过 React）
+            const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLTextAreaElement.prototype, 'value'
+            ).set;
+            nativeTextAreaValueSetter.call(textarea, {repr(text)});
+            // 2. 触发 React 的 input 事件
+            textarea.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            // 3. 触发 change 事件（有些组件需要）
+            textarea.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            // 4. 延迟提交
+            setTimeout(() => {{
+                const btn = document.querySelector('[data-testid="stChatInputSubmitButton"]');
+                if (btn) {{
+                    btn.click();
+                    console.log('Submitted:', {repr(text)});
+                }}
+            }}, 200);
         }}
     """)
 
+def get_last_reply_time():
+    last = window.evaluate_js("""
+        const el = document.getElementById('last-reply-time');
+        el ? parseInt(el.textContent) : 0;
+    """) or 0
+    return last or int(time.time())
+
+def idle_monitor():
+    last_trigger_time = 0
+    while True:
+        time.sleep(5)
+        try:
+            now = time.time()
+            if now - last_trigger_time < 120: continue
+            last_reply = get_last_reply_time()
+            if now - last_reply > 1800:
+                print('[Idle Monitor] Detected idle state, injecting task...')
+                inject("[AUTO]🤖 用户已经离开超过30分钟，作为自主智能体，请阅读自动化sop，执行自动任务。")
+                last_trigger_time = now
+        except Exception as e:
+            print(f'[Idle Monitor] Error: {e}')
 
 if __name__ == '__main__':
     port = sys.argv[1] if len(sys.argv) > 1 else "8501"
     t = threading.Thread(target=start_streamlit, args=(port,), daemon=True)
     t.start()
+
+    monitor_thread = threading.Thread(target=idle_monitor, daemon=True)
+    monitor_thread.start()
     if os.name == 'nt':
         screen_width = get_screen_width()
         x_pos = screen_width - WINDOW_WIDTH - RIGHT_PADDING

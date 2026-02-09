@@ -30,7 +30,7 @@
     "description": "用于文件的新建、全量覆盖或追加写入。对于精细的代码修改，应优先使用 file_patch。注意：要写入的内容必须放在回复正文的 <file_content> 标签或代码块中。",
     "parameters": {"type": "object", "properties": {
       "path": {"type": "string", "description": "文件路径。"},
-      "mode": {"type": "string", "enum": ["overwrite", "append"], "description": "写入模式：overwrite（覆盖，默认）或 append（追加）。", "default": "overwrite"}}, "required": ["path"]}
+      "mode": {"type": "string", "enum": ["overwrite", "append", "prepend"], "description": "写入模式覆盖、追加或在开头追加。", "default": "overwrite"}}, "required": ["path"]}
   }},
   {"type": "function", "function": {
     "name": "web_scan",
@@ -47,11 +47,11 @@
       "save_to_file": {"type": "string", "description": "可选。将 JS 执行结果（js_return）保存到的文件路径。注意：该功能不支持 await 等异步结果。"}}, "required": ["script"]}
   }},
   {"type": "function", "function": {
-    "name": "update_plan",
-    "description": "更新任务的宏观计划和当前战略重心。仅在初始拆解多步任务或发生重大方案调整时使用。禁止用于记录细微调试步骤或纠错。",
+    "name": "update_sop_plan",
+    "description": "【在读取SOP后需要调用】准备开始执行此SOP。提取容易遗忘但关键的内容，生成极简检查清单，100tokens以内，后续每轮自动注入context。特别是靠后的内容。",
     "parameters": {"type": "object", "properties": {
-      "plan": {"type": "string", "description": "完整的宏观任务路线图。"},
-      "focus": {"type": "string", "description": "当前阶段的工作重点。"}}}
+      "keys": {"type": "string", "description": "每轮自动注入的必须注意的文本，可以是约束规则/执行步骤/需要注意的坑"},
+      "sop_path": {"type": "string", "description": "sop路径，必要时可以再读"}}}
   }},
   {"type": "function", "function": {
     "name": "ask_user",
@@ -62,7 +62,7 @@
   }},
   {"type": "function", "function": {
     "name": "conclude_and_reflect",
-    "description": "当模型认为当前任务（非处理记忆）执行完美，且有具有长期价值的环境事实或用户偏好需要提炼并存入全局记忆时，调用此工具。注意：此工具调用即代表触发记忆提炼流程，如果已经在记忆提炼流程无需调用。",
+    "description": "用户的任务完成后，若发现值得长期记忆的信息（环境事实/用户偏好/避坑经验），调用此工具触发记忆提炼。不允许在记忆更新或自主流程内调用。",
     "parameters": {"type": "object", "properties": {}}}
   }
 ]
