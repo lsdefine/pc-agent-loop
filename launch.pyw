@@ -12,12 +12,9 @@ TOP_PADDING = 300    # 离屏幕上边缘的距离
 
 def get_screen_width():
     try:
-        # GetSystemMetrics(0) 获取主屏幕宽度
         user32 = ctypes.windll.user32
         return user32.GetSystemMetrics(0)
-    except:
-        # 如果不是 Windows 或者出错了，返回一个兜底值 (比如 1920)
-        return 1920
+    except: return 1920
 
 def start_streamlit(port):
     global proc
@@ -30,6 +27,18 @@ def start_streamlit(port):
     proc = subprocess.Popen(cmd)
     atexit.register(proc.kill)
 
+def inject(text):
+    """注入输入到 Streamlit"""
+    window.evaluate_js(f"""
+        const input = document.querySelector('input[data-testid="stChatInputTextInput"]');
+        if (input) {{
+            input.value = {repr(text)};
+            input.dispatchEvent(new Event('input', {{bubbles: true}}));
+            input.dispatchEvent(new KeyboardEvent('keydown', {{key: 'Enter', keyCode: 13, bubbles: true}}));
+        }}
+    """)
+
+
 if __name__ == '__main__':
     port = sys.argv[1] if len(sys.argv) > 1 else "8501"
     t = threading.Thread(target=start_streamlit, args=(port,), daemon=True)
@@ -39,7 +48,7 @@ if __name__ == '__main__':
         x_pos = screen_width - WINDOW_WIDTH - RIGHT_PADDING
     else: x_pos = 100
     time.sleep(2) 
-    webview.create_window(
+    window = webview.create_window(
         title='GenericAgent', 
         url=f'http://localhost:{port}',
         width=WINDOW_WIDTH, 

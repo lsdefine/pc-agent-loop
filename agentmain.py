@@ -61,16 +61,15 @@ class GeneraticAgent:
             self.handler.code_stop_signal.append(1)
 
     def put_task(self, query, source="user"):
-        while self.display_queue.qsize() > 0:
-            try: self.display_queue.get_nowait()
-            except queue.Empty: break
-        self.task_queue.put({"query": query, "source": source})
+        display_queue = queue.Queue()
+        self.task_queue.put({"query": query, "source": source, "output": display_queue})
+        return display_queue
 
     def run(self):
         while True:
             task = self.task_queue.get()
             self.is_running = True
-            raw_query, source = task["query"], task["source"]
+            raw_query, source, display_queue = task["query"], task["source"], task["output"]
             self.current_source = source
             self.last_active_time = time.time()
                         
@@ -90,15 +89,15 @@ class GeneraticAgent:
                     if self.stop_sig: break
                     full_response += chunk
                     if len(full_response) - last_pos > 50:
-                        self.display_queue.put({'next': f'{full_response}', 'source': source})
+                        display_queue.put({'next': f'{full_response}', 'source': source})
                         last_pos = len(full_response)
                 if '</summary>' in full_response: full_response = full_response.replace('</summary>', '</summary>\n\n')
                 if '</file_content>' in full_response: full_response = re.sub(r'<file_content>\s*(.*?)\s*</file_content>', r'\n````\n<file_content>\n\1\n</file_content>\n````', full_response, flags=re.DOTALL)
-                self.display_queue.put({'done': full_response, 'source': source})
+                display_queue.put({'done': full_response, 'source': source})
                 self.history = handler.history_info
             except Exception as e:
                 print(f"Backend Error: {format_error(e)}")
-                self.display_queue.put({'done': full_response + f'\n```\n{format_error(e)}\n```', 'source': source})
+                display_queue.put({'done': full_response + f'\n```\n{format_error(e)}\n```', 'source': source})
             finally:
                 self.is_running = False
                 self.stop_sig = False
