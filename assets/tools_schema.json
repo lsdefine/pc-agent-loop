@@ -61,7 +61,7 @@
       "candidates": {"type": "array", "items": {"type": "string"}, "description": "提供给用户的可选快捷选项列表。"}}, "required": ["question"]}
   }},
   {"type": "function", "function": {
-    "name": "conclude_and_reflect",
+    "name": "trigger_memory_update",
     "description": "用户的任务完成后，若发现值得长期记忆的信息（环境事实/用户偏好/避坑经验），调用此工具触发记忆提炼。不允许在记忆更新或自主流程内调用。",
     "parameters": {"type": "object", "properties": {}}}
   }

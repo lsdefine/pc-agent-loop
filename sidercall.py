@@ -226,7 +226,7 @@ class ToolClient:
             prompt += f"=== {role} ===\n{m['content']}\n\n"
             self.total_cd_tokens += len(m['content'])
             
-        if self.total_cd_tokens > 9000: self.last_tools = ''
+        if self.total_cd_tokens > 6000: self.last_tools = ''
 
         prompt += "=== ASSISTANT ===\n" 
         return prompt

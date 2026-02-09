@@ -438,7 +438,7 @@ class GenericAgentHandler(BaseHandler):
         yield "[Info] Final response to user.\n"
         return StepOutcome(response, next_prompt=None, should_exit=True)
     
-    def do_conclude_and_reflect(self, args, response):
+    def do_trigger_memory_update(self, args, response):
         '''Agent觉得当前任务完成后有重要信息需要记忆时调用此工具。
         '''
         prompt = '''### [总结提炼经验] 既然你觉得当前任务有重要信息需要记忆，请提取最近一次任务中【事实验证成功且长期有效】的环境事实、用户偏好、重要步骤，更新记忆。
