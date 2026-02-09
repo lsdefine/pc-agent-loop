@@ -42,3 +42,11 @@ memory/*
 # Allow tracking of specific SOPs
 !memory/web_setup_sop.md
 !memory/autonomous_operation_sop.md
+
+# ljqCtrl related tools
+!memory/ljqCtrl.py
+!memory/ljqCtrl_sop.md
+
+# mem_scanner related tools
+!memory/mem_scanner.py
+!memory/mem_scanner_sop.md
