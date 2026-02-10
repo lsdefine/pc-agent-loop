@@ -241,8 +241,8 @@ class GenericAgentHandler(BaseHandler):
     '''
     def __init__(self, parent, last_history=None, cwd='./'):
         self.parent = parent
-        self.sop_keys = ""
-        self.sop_path = ""
+        self.key_info = ""
+        self.related_sop = ""
         self.cwd = cwd
         self.history_info = last_history if last_history else []
         self.code_stop_signal = []
@@ -382,19 +382,19 @@ class GenericAgentHandler(BaseHandler):
             result = tips + result 
         next_prompt = self._get_anchor_prompt()
         if 'memory' in path or 'sop' in path: 
-            next_prompt += "\nPROTOCOL: 你正在读取记忆或SOP文件，若决定按sop执行请先调用准备执行相关工具，提取sop中的重点内容（特别是靠后的）进入工作记忆。"
+            next_prompt += "\nPROTOCOL: 你正在读取记忆或SOP文件，若决定按sop执行请先调用相关工具提取sop中的关键点（特别是靠后的）进入工作记忆。"
         return StepOutcome(result, next_prompt=next_prompt)
     
-    def do_update_sop_plan(self, args, response):
+    def do_update_working_mem(self, args, response):
         '''读取完sop后，为整个任务设定后续需要临时记忆的重点。
         '''
-        sop_keys = args.get("keys", "")
-        sop_path = args.get("sop_path", "")
-        if sop_keys: self.sop_keys = sop_keys
-        if sop_path: self.sop_path = sop_path
-        yield f"[Info] Updated sop_keys and sop_path.\n"
-        yield f"sop_keys:\n{self.sop_keys}\n\n"
-        yield f"sop_path:\n{self.sop_path}\n\n"
+        key_info = args.get("key_info", "")
+        related_sop = args.get("related_sop", "")
+        if key_info: self.key_info = key_info
+        if related_sop: self.related_sop = related_sop
+        yield f"[Info] Updated key_info and related_sop.\n"
+        yield f"key_info:\n{self.key_info}\n\n"
+        yield f"related_sop:\n{self.related_sop}\n\n"
         next_prompt = self._get_anchor_prompt()
         return StepOutcome({"status": "success"}, next_prompt=next_prompt)
 
@@ -458,8 +458,8 @@ class GenericAgentHandler(BaseHandler):
     def _get_anchor_prompt(self):
         h_str = "\n".join(self.history_info[-20:])
         prompt = f"\n### [WORKING MEMORY]\n<history>\n{h_str}\n</history>"
-        if self.sop_keys: prompt += f"\n<sop_essentials>{self.sop_keys}</sop_essentials>"
-        if self.sop_path: prompt += f"\n有不清晰的地方请再次读取{self.sop_path}"
+        if self.key_info: prompt += f"\n<sop_essentials>{self.key_info}</sop_essentials>"
+        if self.related_sop: prompt += f"\n有不清晰的地方请再次读取{self.related_sop}"
         print(prompt)
         return prompt
 

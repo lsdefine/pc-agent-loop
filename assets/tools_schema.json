@@ -47,11 +47,11 @@
       "save_to_file": {"type": "string", "description": "可选。将 JS 执行结果（js_return）保存到的文件路径。注意：该功能不支持 await 等异步结果。"}}, "required": ["script"]}
   }},
   {"type": "function", "function": {
-    "name": "update_sop_plan",
-    "description": "【在读取SOP后需要调用】准备开始执行此SOP。提取容易遗忘但关键的内容，生成极简检查清单，100tokens以内，后续每轮自动注入context。特别是靠后的内容。",
+    "name": "update_working_mem",
+    "description": "更新当前任务的工作记忆。当任务目标细化、阶段切换或发现关键物理约束（坑）时调用，内容将作为物理锚点在后续每轮自动注入，强行锁定推理方向，防止长程任务逻辑漂移。",
     "parameters": {"type": "object", "properties": {
-      "keys": {"type": "string", "description": "每轮自动注入的必须注意的文本，可以是约束规则/执行步骤/需要注意的坑"},
-      "sop_path": {"type": "string", "description": "sop路径，必要时可以再读"}}}
+      "key_info": {"type": "string", "description": "替换掉当前的极简关键信息（200tokens以内），包含当前进度和目标、已获取的关键信息及下一步必须绕过的坑，已经解决或完成的步骤可以去掉"},
+      "related_sop": {"type": "string", "description": "相关sop名称，可以多个，必要时需要再读"}}}
   }},
   {"type": "function", "function": {
     "name": "ask_user",
@@ -62,7 +62,7 @@
   }},
   {"type": "function", "function": {
     "name": "trigger_memory_update",
-    "description": "用户的任务完成后，若发现值得长期记忆的信息（环境事实/用户偏好/避坑经验），调用此工具触发记忆提炼。不允许在记忆更新或自主流程内调用。",
+    "description": "若发现值得长期记忆的信息（环境事实/用户偏好/避坑经验），调用此工具触发记忆提炼。一次用户对话只允许调用一次，严禁在记忆更新或自主流程内调用。",
     "parameters": {"type": "object", "properties": {}}}
   }
 ]
