@@ -81,7 +81,7 @@ class GeneraticAgent:
             self.handler = handler
             self.llmclient.backend = self.llmclient.backends[self.llm_no]
             gen = agent_runner_loop(self.llmclient, sys_prompt, 
-                        raw_query, handler, TOOLS_SCHEMA, max_turns=25)
+                        raw_query, handler, TOOLS_SCHEMA, max_turns=40)
                         
             try:
                 full_response = ""; last_pos = 0

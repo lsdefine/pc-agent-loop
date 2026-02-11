@@ -1,11 +1,12 @@
 # coding=utf-8
 """
+CRITICAL: 严禁在此工具链中 import pyautogui (会污染 win32api 导致逻辑冲突)。
 ljqCtrl Quick Reference:
-- dpi_scale: float (Physical = Logical / dpi_scale)
-- Click(x, y=None): Click logical/physical coordinates
-- SetCursorPos(z): Move mouse to logical coordinate z=(x, y)
-- Press(cmd, staytime=0): Keyboard shortcuts (e.g. 'ctrl+c')
-- FindBlock(fn, wrect=None, threshold=0.8) -> (obj_center, is_found)
+- dpi_scale: float (Logical = Physical * dpi_scale)
+- Click(x, y): Use Physical Coordinates (from screenshots)
+- SetCursorPos(z): Use Physical Coordinates z=(x, y)
+- Press(cmd, staytime=0): Keyboard shortcuts (e.g. 'ctrl+v')
+- FindBlock(fn, wrect=None, threshold=0.8) -> (obj_center_phys, is_found)
 - MouseDClick(staytime=0.05), MouseClick(staytime=0.05)
 """
 

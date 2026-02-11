@@ -12,7 +12,7 @@
 ---
 ## 记忆层级架构
 ```
-L1: global_mem_insight.txt (极简索引层 - 严格控制 ≤50 行)  
+L1: global_mem_insight.txt (极简索引层 - 严格控制 ≤30 行)  
     ↓ 导航指向 (Pointer)  
 L2: global_mem.txt (事实库层 - 现短但会膨胀)  
     ↓ 详细引用 (Reference)  

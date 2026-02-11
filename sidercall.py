@@ -56,7 +56,7 @@ class GeminiSession:
         return iter([full_text]) if stream else full_text
   
 class LLMSession:
-    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=12000):
+    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=16000):
         self.api_key = api_key
         self.api_base = api_base
         self.raw_msgs = []
@@ -202,18 +202,18 @@ class ToolClient:
         if tools:
             tools_json = json.dumps(tools, ensure_ascii=False, separators=(',', ':'))
             tool_instruction = f"""
-### 交互协议 (必须严格遵守)
+### 交互协议 (必须严格遵守，持续有效)
 请按照以下步骤思考并行动，标签之间需要回车换行：
 1. **思考**: 在 `<thinking>` 标签中先进行思考，分析现状和策略。
 2. **总结**: 在 `<summary>` 中输出*极为简短*的高度概括的单行（<30字）物理快照，包括上次工具调用结果获取的新信息+本次工具调用意图和预期。此内容将进入长期工作记忆，记录关键信息，严禁输出无实际信息增量的描述。
 3. **行动**: 如果需要调用工具，请在回复正文之后输出一个 **<tool_use>块**，然后结束，我会稍后给你返回<tool_result>块。
    格式: ```<tool_use>\n{{"name": "工具名", "arguments": {{参数}}}}\n</tool_use>\n```
 
-### 可用工具库
+### 可用工具库（已挂载，持续有效）
 {tools_json}
 """
             if self.auto_save_tokens and self.last_tools == tools_json:
-                tool_instruction = "\n### 交互协议保持不变，沿用之前的协议和工具库。\n"
+                tool_instruction = "\n### 工具库状态：持续有效（code_run/file_read等），**可正常调用**。调用协议沿用。\n"
             else:
                 self.total_cd_tokens = 0
             self.last_tools = tools_json
@@ -255,7 +255,11 @@ class ToolClient:
             if json_str == '' and '```' in weaktoolstr and weaktoolstr.split('```')[0].strip().endswith('}'):
                 json_str = weaktoolstr.split('```')[0].strip()
             remaining_text = remaining_text.replace('<tool_use>'+weaktoolstr, "")
-
+        elif '"name":' in remaining_text and '"arguments":' in remaining_text:
+            json_match = re.search(r"(\{.*\"name\":.*?\})", remaining_text, re.DOTALL | re.MULTILINE)
+            if json_match:
+                json_str = json_match.group(1).strip()
+                remaining_text = remaining_text.replace(json_str, "").strip()
         if json_str:
             try:
                 data = tryparse(json_str)
@@ -275,8 +279,14 @@ class ToolClient:
 
 def tryparse(json_str):
     try: return json.loads(json_str)
-    except:
-        return json.loads(json_str[:-1])
+    except: pass
+    json_str = json_str.strip().strip('`').replace('json\n', '', 1).strip()
+    try: return json.loads(json_str)
+    except: pass
+    try: return json.loads(json_str[:-1])
+    except: pass
+    if '}' in json_str: json_str = json_str[:json_str.rfind('}') + 1]
+    return json.loads(json_str)
 
 if __name__ == "__main__":
     import sys, os

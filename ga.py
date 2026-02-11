@@ -458,7 +458,7 @@ class GenericAgentHandler(BaseHandler):
     def _get_anchor_prompt(self):
         h_str = "\n".join(self.history_info[-20:])
         prompt = f"\n### [WORKING MEMORY]\n<history>\n{h_str}\n</history>"
-        if self.key_info: prompt += f"\n<sop_essentials>{self.key_info}</sop_essentials>"
+        if self.key_info: prompt += f"\n<key_info>{self.key_info}</key_info>"
         if self.related_sop: prompt += f"\n有不清晰的地方请再次读取{self.related_sop}"
         print(prompt)
         return prompt
