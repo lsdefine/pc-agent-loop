@@ -83,7 +83,9 @@ function analyzeNode(node, pPathType='main') {
       return;  
     }  
     const pathType = (node.dataset.mark && !node.dataset.mark.includes(':main')) ? 'second' : pPathType;  
-    const rectn = getNodeInfo(node).rect; 
+    const nodeInfoData = getNodeInfo(node);
+    if (!nodeInfoData || !nodeInfoData.rect) return;
+    const rectn = nodeInfoData.rect; 
     if (rectn.width < window.innerWidth * 0.8 && rectn.height < window.innerHeight * 0.8) return node;
     if (node.tagName === 'TABLE') return;
     const children = Array.from(node.children);  
@@ -901,33 +903,34 @@ def execute_js_rich(script, driver):
         error_msg = str(error)
         print(f"❌ Error: {error_msg}")
 
-    transients = get_temp_texts(driver)
-
     if driver.default_session_id != curr_session:
         curr_session = driver.latest_session_id
         print('Session changed')
         new_tab = True
-    
-    current_html = get_html(driver)
-    diff_summary = "无需对比 (报错)"
-    is_significant_change = False
-    if not error_msg:
-        diff_data = find_changed_elements(last_html, current_html)
-        change_count = diff_data.get('changed', 0)
-        diff_summary = f"DOM变化量: {change_count}"
-        if change_count < 5 and not transients and not new_tab:
-            diff_summary += " (页面几乎无静默变化)"
-        else:
-            is_significant_change = True
-    return {
+    rr = {
         "status": "failed" if error_msg else "success",
         "js_return": result,
-        "error": error_msg,
-        "transients": transients, 
         "environment": {
             "new_tab": new_tab,
             "reloaded": reloaded
-        },
-        "diff": diff_summary,
-        "suggestion": "" if is_significant_change else "页面无明显变化"
-    }
+        }
+    }  
+    if error_msg: rr['error'] = error_msg
+    if not reloaded:
+        transients = get_temp_texts(driver)
+        rr['transients'] = transients
+    if not reloaded and not new_tab:
+        current_html = get_html(driver)   
+        diff_summary = "无需对比 (报错)"
+        is_significant_change = False
+        if not error_msg:
+            diff_data = find_changed_elements(last_html, current_html)
+            change_count = diff_data.get('changed', 0)
+            diff_summary = f"DOM变化量: {change_count}"
+            if change_count < 5 and not transients and not new_tab:
+                diff_summary += " (页面几乎无静默变化)"
+            else:
+                is_significant_change = True
+        rr['diff'] = diff_summary
+        rr['suggestion'] = "" if is_significant_change else "页面无明显变化"
+    return rr

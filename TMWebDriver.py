@@ -223,8 +223,9 @@ class TMWebDriver:
                 if hasjump and session.is_active():
                     if not self.is_remote and auto_switch_newtab: self.last_cmd_time = time.time()
                     return {"result": f"Session {session_id} reloaded.", "closed":1}
-            if time.time() - start_time > timeout + 10:  
+            if time.time() - start_time > timeout:  
                 if tp == 'ws':
+                    if hasjump: return {"result": f"Session {session_id} reloaded and new page is loading...", "closed":1}
                     return {"result": f"No response data in {timeout}s"}
                 elif tp == 'http':
                     return {"result": f"Session {session_id} no response."}

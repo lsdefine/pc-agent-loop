@@ -28,11 +28,12 @@ def get_system_prompt():
 class GeneraticAgent:
     def __init__(self):
         if not os.path.exists('temp'): os.makedirs('temp')
-        from sidercall import sider_cookie, oai_apikey, oai_apibase
+        from sidercall import sider_cookie, oai_configs
         llm_sessions = []
         if sider_cookie: llm_sessions += [SiderLLMSession(default_model=x) for x in \
                                     ["gemini-3.0-flash", "claude-haiku-4.5", "kimi-k2"]]
-        if oai_apikey: llm_sessions += [LLMSession(api_key=oai_apikey, api_base=oai_apibase)]
+        for cfg in oai_configs.values():
+            llm_sessions += [LLMSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model'])]
         if len(llm_sessions) > 0: 
             llmclient = ToolClient(llm_sessions, auto_save_tokens=True)
             self.llmclient = llmclient

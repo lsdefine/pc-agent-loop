@@ -3,14 +3,14 @@ import os, json, re, time, requests, sys, threading
 try: import mykey
 except: raise Exception('[ERROR] mykey.py not found, please copy mykey_template.py to mykey.py and fill your LLM backend.')
 
-def get_config(name, default=""): return getattr(mykey, name, default)
+mykeys = vars(mykey)
+sider_cookie = mykeys.get("sider_cookie")
+oai_configs = {
+    k: v for k, v in vars(mykey).items() if k.startswith("oai_config") and v
+}
+google_api_key = mykeys.get("google_api_key")
 
-sider_cookie = get_config("sider_cookie")
-oai_apikey = get_config("oai_apikey")
-oai_apibase = get_config("oai_apibase")
-oai_model = get_config("oai_model")
-google_api_key = get_config("google_api_key")
-proxy = get_config("proxy", 'http://127.0.0.1:2082')
+proxy = mykeys.get("proxy", 'http://127.0.0.1:2082')
 proxies = {"http": proxy, "https": proxy} if proxy else None
 
 class SiderLLMSession:
@@ -56,7 +56,7 @@ class GeminiSession:
         return iter([full_text]) if stream else full_text
   
 class LLMSession:
-    def __init__(self, api_key=oai_apikey, api_base=oai_apibase, model=oai_model, context_win=16000):
+    def __init__(self, api_key, api_base, model, context_win=16000):
         self.api_key = api_key
         self.api_base = api_base
         self.raw_msgs = []
@@ -297,14 +297,16 @@ if __name__ == "__main__":
         class MockMyKey: pass
         mykey = MockMyKey()
     
-    sider_cookie = get_config("sider_cookie")
-    oai_apikey = get_config("oai_apikey")
-    oai_apibase = get_config("oai_apibase")
-    oai_model = get_config("oai_model")
-    google_api_key = get_config("google_api_key")
+    mykeys = vars(mykey)
+    sider_cookie = mykeys.get("sider_cookie")
+    oai_configs = {
+        k: v for k, v in vars(mykey).items() if k.startswith("oai_config") and v
+    }
+    google_api_key = mykeys.get("google_api_key")
+    cfg = oai_configs.get("oai_config")
 
     llmclient = ToolClient(GeminiSession(api_key=google_api_key, proxy='127.0.0.1:2082').ask)
-    #llmclient = ToolClient(LLMSession(api_key=oai_apikey, api_base=oai_apibase, model=oai_model).ask)
+    #llmclient = ToolClient(LLMSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model']).ask)
     #llmclient = ToolClient(SiderLLMSession().ask)
     def get_final(gen):
         try:
