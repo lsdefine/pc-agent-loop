@@ -15,3 +15,10 @@ oai_config2 = {
     'apibase':"http://133.145.139.147:3001/v1",
     'model':"claude-opus-4-6-20260206"
 }
+
+
+claude_config = {
+    'apikey':'klURcj...',
+    'apibase':"http://233.145.139.147:3001/",
+    'model':"claude-opus"
+}

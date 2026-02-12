@@ -1,13 +1,13 @@
-import os, json, re, time, requests, sys, threading
+import os, json, re, time, requests, sys, threading, urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 try: import mykey
 except: raise Exception('[ERROR] mykey.py not found, please copy mykey_template.py to mykey.py and fill your LLM backend.')
 
 mykeys = vars(mykey)
 sider_cookie = mykeys.get("sider_cookie")
-oai_configs = {
-    k: v for k, v in vars(mykey).items() if k.startswith("oai_config") and v
-}
+oai_configs = {k: v for k, v in vars(mykey).items() if k.startswith("oai_config") and v}
+claude_configs = {k: v for k, v in vars(mykey).items() if k.startswith("claude_config") and v}
 google_api_key = mykeys.get("google_api_key")
 
 proxy = mykeys.get("proxy", 'http://127.0.0.1:2082')
@@ -55,6 +55,54 @@ class GeminiSession:
             return f"[GeminiError] invalid response format: {e}"
         return iter([full_text]) if stream else full_text
   
+class ClaudeSession:
+    def __init__(self, api_key, api_base, model="claude-opus", context_win=32000):
+        self.api_key, self.api_base, self.default_model, self.context_win = api_key, api_base.rstrip('/'), model, context_win
+        self.raw_msgs, self.lock = [], threading.Lock()
+    def _trim_messages(self, messages):
+        total = sum(len(m['prompt'])//4 for m in messages)
+        if total <= self.context_win: return messages
+        trimmed = []
+        for msg in reversed(messages):
+            if sum(len(m['prompt'])//4 for m in trimmed) + len(msg['prompt'])//4 <= self.context_win * 0.9:
+                trimmed.insert(0, msg)
+            else: break
+        return trimmed if trimmed else messages[-2:]
+    def raw_ask(self, messages, model=None, temperature=0.5, max_tokens=4096):
+        model = model or self.default_model
+        headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}
+        payload = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "stream": True}
+        try:
+            with requests.post(f"{self.api_base}/v1/messages", headers=headers, json=payload, stream=True, timeout=(5,60), verify=False) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if not line: continue
+                    line = line.decode("utf-8") if isinstance(line, bytes) else line
+                    if not line.startswith("data:"): continue
+                    data = line[5:].lstrip()
+                    if data == "[DONE]": break
+                    try:
+                        obj = json.loads(data)
+                        if obj.get("type") == "content_block_delta" and obj.get("delta", {}).get("type") == "text_delta":
+                            text = obj["delta"].get("text", "")
+                            if text: yield text
+                    except: pass
+        except Exception as e: yield f"Error: {str(e)}"
+    def make_messages(self, raw_list):
+        trimmed = self._trim_messages(raw_list)
+        return [{"role": m['role'], "content": m['prompt']} for m in trimmed]
+    def ask(self, prompt, model=None, stream=False):
+        def _ask_gen():
+            content = ''
+            with self.lock:
+                self.raw_msgs.append({"role": "user", "prompt": prompt})
+                messages = self.make_messages(self.raw_msgs)
+            for chunk in self.raw_ask(messages, model):
+                content += chunk; yield chunk
+            if not content.startswith("Error:"):
+                self.raw_msgs.append({"role": "assistant", "prompt": content})
+        return _ask_gen() if stream else ''.join(list(_ask_gen()))
+
 class LLMSession:
     def __init__(self, api_key, api_base, model, context_win=16000):
         self.api_key = api_key

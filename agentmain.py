@@ -4,7 +4,7 @@ if sys.stdout is None: sys.stdout = open(os.devnull, "w")
 if sys.stderr is None: sys.stderr = open(os.devnull, "w")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from sidercall import SiderLLMSession, LLMSession, ToolClient
+from sidercall import SiderLLMSession, LLMSession, ToolClient, ClaudeSession
 from agent_loop import agent_runner_loop, StepOutcome, BaseHandler
 from ga import GenericAgentHandler, smart_format, get_global_memory, format_error
 
@@ -28,12 +28,14 @@ def get_system_prompt():
 class GeneraticAgent:
     def __init__(self):
         if not os.path.exists('temp'): os.makedirs('temp')
-        from sidercall import sider_cookie, oai_configs
+        from sidercall import sider_cookie, oai_configs, claude_configs
         llm_sessions = []
         if sider_cookie: llm_sessions += [SiderLLMSession(default_model=x) for x in \
                                     ["gemini-3.0-flash", "claude-haiku-4.5", "kimi-k2"]]
         for cfg in oai_configs.values():
             llm_sessions += [LLMSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model'])]
+        for cfg in claude_configs.values():
+            llm_sessions += [ClaudeSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model'])]
         if len(llm_sessions) > 0: 
             llmclient = ToolClient(llm_sessions, auto_save_tokens=True)
             self.llmclient = llmclient
