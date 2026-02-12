@@ -84,20 +84,10 @@ def code_run(code, code_type="python", timeout=60, cwd=None, code_cwd=None, stop
 
 
 def ask_user(question: str, candidates: list = None):
+    """question: 向用户提出的问题。candidates: 可选的候选项列表。需要保证should_exit为True
     """
-    构造一个中断请求。
-    question: 向用户提出的问题。
-    candidates: 可选的候选项列表。
-    需要保证should_exit为True
-    """
-    return {
-        "status": "INTERRUPT",
-        "intent": "HUMAN_INTERVENTION",
-        "data": {
-            "question": question,
-            "candidates": candidates or []
-        }
-    }
+    return {"status": "INTERRUPT", "intent": "HUMAN_INTERVENTION",
+        "data": {"question": question, "candidates": candidates or []}}
 
 from simphtml import execute_js_rich, get_html
 

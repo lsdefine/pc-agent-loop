@@ -30,15 +30,14 @@ class GeneraticAgent:
         if not os.path.exists('temp'): os.makedirs('temp')
         from sidercall import sider_cookie, oai_configs, claude_configs
         llm_sessions = []
+        for cfg in claude_configs.values():
+            llm_sessions += [ClaudeSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model'])]
         if sider_cookie: llm_sessions += [SiderLLMSession(default_model=x) for x in \
                                     ["gemini-3.0-flash", "claude-haiku-4.5", "kimi-k2"]]
         for cfg in oai_configs.values():
             llm_sessions += [LLMSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model'])]
-        for cfg in claude_configs.values():
-            llm_sessions += [ClaudeSession(api_key=cfg['apikey'], api_base=cfg['apibase'], model=cfg['model'])]
         if len(llm_sessions) > 0: 
-            llmclient = ToolClient(llm_sessions, auto_save_tokens=True)
-            self.llmclient = llmclient
+            self.llmclient = ToolClient(llm_sessions, auto_save_tokens=True)
         else:
             self.llmclient = None
         self.lock = threading.Lock()

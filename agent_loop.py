@@ -24,6 +24,8 @@ class BaseHandler:
             ret = yield from try_call_generator(getattr(self, method_name), args, response)
             _ = yield from try_call_generator(self.tool_after_callback, tool_name, args, response, ret)
             return ret
+        elif tool_name == 'bad_json':
+            return StepOutcome(None, next_prompt=args.get('msg', 'bad_json'), should_exit=False)
         else:
             yield f"❌ 未知工具: {tool_name}\n"
             return StepOutcome(None, next_prompt=f"未知工具 {tool_name}", should_exit=False)

@@ -56,18 +56,18 @@ class GeminiSession:
         return iter([full_text]) if stream else full_text
   
 class ClaudeSession:
-    def __init__(self, api_key, api_base, model="claude-opus", context_win=32000):
+    def __init__(self, api_key, api_base, model="claude-opus", context_win=24000):
         self.api_key, self.api_base, self.default_model, self.context_win = api_key, api_base.rstrip('/'), model, context_win
         self.raw_msgs, self.lock = [], threading.Lock()
     def _trim_messages(self, messages):
         total = sum(len(m['prompt'])//4 for m in messages)
         if total <= self.context_win: return messages
-        trimmed = []
+        target, current, result = self.context_win * 0.9, 0, []
         for msg in reversed(messages):
-            if sum(len(m['prompt'])//4 for m in trimmed) + len(msg['prompt'])//4 <= self.context_win * 0.9:
-                trimmed.insert(0, msg)
+            if (msg_len := len(msg['prompt'])//4) + current <= target:
+                result.append(msg); current += msg_len
             else: break
-        return trimmed if trimmed else messages[-2:]
+        return result[::-1] or messages[-2:]
     def raw_ask(self, messages, model=None, temperature=0.5, max_tokens=4096):
         model = model or self.default_model
         headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}
@@ -315,9 +315,9 @@ class ToolClient:
                 args = data.get('arguments') or data.get('args') or data.get('params') or data.get('parameters')
                 if args is None: args = data
                 if func_name: tool_calls = [MockToolCall(func_name, args)]
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 print("[Warn] Failed to parse tool_use JSON:", json_str)
-                remaining_text += f"[Warning] JSON 解析失败，模型输出了无效的 JSON."
+                tool_calls = [MockToolCall('bad_json', {'msg': f'Failed to parse tool_use JSON: {str(e)}'})]
             except Exception as e:
                 print("[Error] Exception during tool_use parsing:", str(e), data)
 
