@@ -50,3 +50,6 @@ memory/*
 # mem_scanner related tools
 !memory/mem_scanner.py
 !memory/mem_scanner_sop.md
+# Visual Studio
+.vs/
+restore_commit.txt
