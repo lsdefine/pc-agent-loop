@@ -29,7 +29,7 @@ if 'autonomous_enabled' not in st.session_state:
 @st.fragment
 def render_sidebar():
     current_idx = agent.llm_no
-    st.caption(f"LLM Core: {current_idx}: {agent.llmclient.backends[current_idx].default_model}", help="点击切换备用链路")
+    st.caption(f"LLM Core: {current_idx}: {agent.get_llm_name()}", help="点击切换备用链路")
     last_reply_time = st.session_state.get('last_reply_time', 0)
     if last_reply_time > 0:
         st.caption(f"空闲时间：{int(time.time()) - last_reply_time}秒", help="当超过30分钟未收到回复时，系统会自动任务")

@@ -34,13 +34,18 @@ def json_default(o):
     if isinstance(o, set): return list(o)
     return str(o) 
 
+def exhaust(g):
+    try: 
+        while True: next(g)
+    except StopIteration as e: return e.value
+
 def get_pretty_json(data):
     if isinstance(data, dict) and "script" in data:
         data = data.copy()
         data["script"] = data["script"].replace("; ", ";\n  ")
     return json.dumps(data, indent=2, ensure_ascii=False).replace('\\n', '\n')
 
-def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, max_turns=15):
+def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, max_turns=15, verbose=True):
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_input}
@@ -50,7 +55,7 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
         if (turn+1) % 10 == 0: client.last_tools = ''  # 每10轮重置一次工具描述，避免上下文过大导致的模型性能下降
         response_gen = client.chat(messages=messages, tools=tools_schema)
         response = yield from response_gen
-        yield '\n\n'
+        if verbose: yield '\n\n'
 
         if not response.tool_calls:
             tool_name, args = 'no_tool', {}
@@ -61,11 +66,16 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
 
         if tool_name == 'no_tool': pass
         else: 
-            yield f"🛠️ **正在调用工具:** `{tool_name}`  📥**参数:**\n"
-            yield f"````text\n{get_pretty_json(args)}\n````\n" 
-        yield '`````\n'
-        outcome = yield from handler.dispatch(tool_name, args, response)
-        yield '`````\n'
+            yield f"🛠️ **正在调用工具:** `{tool_name}`"
+            if verbose: yield f"📥**参数:**\n````text\n{get_pretty_json(args)}\n````\n" 
+            else: yield '\n\n\n'
+        gen = handler.dispatch(tool_name, args, response)
+        if verbose:
+            yield '`````\n'
+            outcome = yield from gen
+            yield '`````\n'
+        else:
+            outcome = exhaust(gen)
 
         if outcome.next_prompt is None: return {'result': 'CURRENT_TASK_DONE', 'data': outcome.data}
         if outcome.should_exit: return {'result': 'EXITED', 'data': outcome.data}

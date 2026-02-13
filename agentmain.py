@@ -43,17 +43,19 @@ class GeneraticAgent:
         self.lock = threading.Lock()
         self.history = []               
         self.task_queue = queue.Queue() 
-        self.display_queue = queue.Queue() 
         self.last_active_time = time.time()
         self.is_running = False    
         self.llm_no = 0
         self.stop_sig = False
         self.current_source = 'none'
         self.handler = None
+        self.verbose = True
 
-    def next_llm(self):
-        self.llm_no = (self.llm_no + 1) % len(self.llmclient.backends)
+    def next_llm(self, n=-1):
+        self.llm_no = ((self.llm_no + 1) if n < 0 else n) % len(self.llmclient.backends)
         self.llmclient.last_tools = ''
+    def list_llms(self): return [(i, b.default_model, i == self.llm_no) for i, b in enumerate(self.llmclient.backends)]
+    def get_llm_name(self): return self.llmclient.backends[self.llm_no].default_model
 
     def abort(self):
         print('Abort current task...')
@@ -82,9 +84,8 @@ class GeneraticAgent:
             handler = GenericAgentHandler(None, self.history, './temp')
             self.handler = handler
             self.llmclient.backend = self.llmclient.backends[self.llm_no]
-            gen = agent_runner_loop(self.llmclient, sys_prompt, 
-                        raw_query, handler, TOOLS_SCHEMA, max_turns=40)
-                        
+            gen = agent_runner_loop(self.llmclient, sys_prompt, raw_query, 
+                                handler, TOOLS_SCHEMA, max_turns=40, verbose=self.verbose)
             try:
                 full_response = ""; last_pos = 0
                 for chunk in gen:
