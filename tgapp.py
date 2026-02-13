@@ -1,4 +1,4 @@
-import os, sys, re, threading, asyncio, queue as Q
+import os, sys, re, threading, asyncio, queue as Q, socket
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from agentmain import GeneraticAgent
 from telegram import Update
@@ -16,6 +16,21 @@ def _clean(t):
     for p in _TAG_PATS:
         t = re.sub(p, '', t, flags=re.DOTALL)
     return re.sub(r'\n{3,}', '\n\n', t).strip() or '...'
+
+import html as _html
+def _inline_md(s):
+    s = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', s)
+    s = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', s)
+    s = re.sub(r'`([^`]+)`', r'<code>\1</code>', s)
+    return s
+def _to_html(t):
+    parts, pos = [], 0
+    for m in re.finditer(r'(`{3,})(?:\w*\n)?([\s\S]*?)\1', t):
+        parts.append(_inline_md(_html.escape(t[pos:m.start()])))
+        parts.append('<pre><code>' + _html.escape(m.group(2)) + '</code></pre>')
+        pos = m.end()
+    parts.append(_inline_md(_html.escape(t[pos:])))
+    return ''.join(parts)
 
 async def _stream(dq, msg):
     last_text = ""
@@ -35,10 +50,13 @@ async def _stream(dq, msg):
             except Exception: pass
             last_text = ""
             show = show[-3900:]
-        if show != last_text:
-            try: await msg.edit_text(show)
-            except Exception: pass
-            last_text = show
+        display = show if done else show + " ⏳"
+        if display != last_text:
+            try: await msg.edit_text(_to_html(display), parse_mode='HTML')
+            except Exception:
+                try: await msg.edit_text(display)
+                except Exception: pass
+            last_text = display
         if done: break
 
 async def handle_msg(update, ctx):
@@ -67,10 +85,14 @@ async def cmd_llm(update, ctx):
         await update.message.reply_text("LLMs:\n" + "\n".join(lines))
 
 if __name__ == '__main__':
+    # Single instance lock using socket
+    try:
+        _lock_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); _lock_sock.bind(('127.0.0.1', 19527))
+    except OSError: sys.exit('Another instance is already running.')
     if not ALLOWED:
         sys.exit('ERROR: tg_allowed_users in mykey.py is empty or missing. Set it to avoid unauthorized access.')
     threading.Thread(target=agent.run, daemon=True).start()
-    proxy = os.environ.get('HTTPS_PROXY') or 'http://127.0.0.1:2082'
+    proxy = vars(mykey).get('proxy', '127.0.0.1:2082')
     app = ApplicationBuilder().token(mykey.tg_bot_token).proxy(proxy).get_updates_proxy(proxy).build()
     app.add_handler(CommandHandler("stop", cmd_abort))
     app.add_handler(CommandHandler("llm", cmd_llm))

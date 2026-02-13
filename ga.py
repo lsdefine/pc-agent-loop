@@ -226,8 +226,7 @@ def smart_format(data, max_depth=2, max_str_len=100, omit_str=' ... '):
     return json.dumps(truncate(data, 0), indent=2, ensure_ascii=False, default=str)
 
 class GenericAgentHandler(BaseHandler):
-    '''
-    Generic Agent 工具库，包含多种工具的实现。工具函数自动加上了 do_ 前缀。实际工具名没有前缀。
+    '''Generic Agent 工具库，包含多种工具的实现。工具函数自动加上了 do_ 前缀。实际工具名没有前缀。
     '''
     def __init__(self, parent, last_history=None, cwd='./'):
         self.parent = parent
@@ -331,7 +330,7 @@ class GenericAgentHandler(BaseHandler):
         yield f"[Action] {action_str} file: {os.path.basename(path)}\n"
 
         def extract_robust_content(text):
-            tag = re.search(r"<file_content>(.*?)</file_content>", text, re.DOTALL)
+            tag = re.search(r"<file_content>(.*)</file_content>", text, re.DOTALL)
             if tag: return tag.group(1).strip()
             s, e = text.find("```"), text.rfind("```")
             if -1 < s < e: return text[text.find("\n", s)+1 : e].strip()
@@ -450,7 +449,8 @@ class GenericAgentHandler(BaseHandler):
         prompt = f"\n### [WORKING MEMORY]\n<history>\n{h_str}\n</history>"
         if self.key_info: prompt += f"\n<key_info>{self.key_info}</key_info>"
         if self.related_sop: prompt += f"\n有不清晰的地方请再次读取{self.related_sop}"
-        print(prompt)
+        try: print(prompt)
+        except: pass
         return prompt
 
 def get_global_memory():

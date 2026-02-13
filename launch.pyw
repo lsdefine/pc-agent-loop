@@ -17,15 +17,17 @@ def get_screen_width():
     except: return 1920
 
 def start_streamlit(port):
-    global proc
+    global proc, tgproc
     cmd = [
-        sys.executable, "-m", "streamlit", "run", "stapp.py", 
-        "--server.port", str(port), 
+        sys.executable, "-m", "streamlit", "run", "stapp.py",
+        "--server.port", str(port),
         "--server.headless", "true",
         "--theme.base", "dark" #以此默认开启暗黑模式，更有极客感
     ]
     proc = subprocess.Popen(cmd)
     atexit.register(proc.kill)
+    tgproc = subprocess.Popen([sys.executable, "tgapp.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+    atexit.register(tgproc.kill)
 
 def inject(text):
     window.evaluate_js(f"""

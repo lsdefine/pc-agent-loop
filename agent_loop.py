@@ -7,7 +7,6 @@ class StepOutcome:
     next_prompt: Optional[str] = None
     should_exit: bool = False
 
-
 def try_call_generator(func, *args, **kwargs):
     ret = func(*args, **kwargs)
     if hasattr(ret, '__iter__') and not isinstance(ret, (str, bytes, dict, list)):
@@ -66,9 +65,9 @@ def agent_runner_loop(client, system_prompt, user_input, handler, tools_schema, 
 
         if tool_name == 'no_tool': pass
         else: 
-            yield f"🛠️ **正在调用工具:** `{tool_name}`"
-            if verbose: yield f"📥**参数:**\n````text\n{get_pretty_json(args)}\n````\n" 
-            else: yield '\n\n\n'
+            showarg = get_pretty_json(args)
+            if not verbose and len(showarg) > 200: showarg = showarg[:200] + ' ...'
+            yield f"🛠️ **正在调用工具:** `{tool_name}`  📥**参数:**\n````text\n{showarg}\n````\n" 
         gen = handler.dispatch(tool_name, args, response)
         if verbose:
             yield '`````\n'
