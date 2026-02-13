@@ -17,7 +17,7 @@ def get_screen_width():
     except: return 1920
 
 def start_streamlit(port):
-    global proc, tgproc
+    global proc
     cmd = [
         sys.executable, "-m", "streamlit", "run", "stapp.py",
         "--server.port", str(port),
@@ -26,8 +26,7 @@ def start_streamlit(port):
     ]
     proc = subprocess.Popen(cmd)
     atexit.register(proc.kill)
-    tgproc = subprocess.Popen([sys.executable, "tgapp.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
-    atexit.register(tgproc.kill)
+
 
 def inject(text):
     window.evaluate_js(f"""
@@ -76,9 +75,20 @@ def idle_monitor():
             print(f'[Idle Monitor] Error: {e}')
 
 if __name__ == '__main__':
-    port = sys.argv[1] if len(sys.argv) > 1 else "8501"
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('port', nargs='?', default='8501')
+    parser.add_argument('--no-tg', action='store_true', help='不启动 Telegram Bot')
+    args = parser.parse_args()
+    port = args.port
     t = threading.Thread(target=start_streamlit, args=(port,), daemon=True)
     t.start()
+
+    if not args.no_tg:
+        tgproc = subprocess.Popen([sys.executable, "tgapp.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+        atexit.register(tgproc.kill)
+        print('[Launch] Telegram Bot started')
+    else: print('[Launch] Telegram Bot disabled (--no-tg)')
 
     monitor_thread = threading.Thread(target=idle_monitor, daemon=True)
     monitor_thread.start()
@@ -90,10 +100,8 @@ if __name__ == '__main__':
     window = webview.create_window(
         title='GenericAgent', 
         url=f'http://localhost:{port}',
-        width=WINDOW_WIDTH, 
-        height=WINDOW_HEIGHT,
+        width=WINDOW_WIDTH, height=WINDOW_HEIGHT,
         x=x_pos, y=TOP_PADDING,
-        resizable=True,
-        text_select=True
+        resizable=True, text_select=True
     )
     webview.start()
