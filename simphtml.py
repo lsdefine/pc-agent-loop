@@ -631,7 +631,7 @@ js_findMainContent = '''
     if (!children.length) return node;  
     if (children.length === 1) return findMainContent(children[0]);  
     if (children.length > 10) return node;
-    if (children.length == 2 && (isLikelyOperationMenu(children[0]) || isLikelyOperationMenu(children[0]))) return node;
+    if (children.length == 2 && (isLikelyOperationMenu(children[0]) || isLikelyOperationMenu(children[1]))) return node;
 
     // 计算元素信息  
     const elemInfo = children.map(child => {  
@@ -867,8 +867,6 @@ def find_changed_elements(before_html, after_html):
         #"changed_elements": changed_elements[:3]
     }  
 
-
-
 def get_html(driver, cutlist=False, maxchars=28000, instruction=""):
     page = get_main_block(driver)
     soup = optimize_html_for_tokens(page)
@@ -876,7 +874,7 @@ def get_html(driver, cutlist=False, maxchars=28000, instruction=""):
     if not cutlist or len(html) <= maxchars: return html
     rr = driver.execute_js(js_findMainList + js_findMainContent + """
         return findMainList(findMainContent(document.body));""")
-    sel = rr.get("selector", None)
+    sel = rr.get("selector", None) if isinstance(rr, dict) else None
     if not sel: return html[:maxchars]
     s = BeautifulSoup(str(soup), "html.parser"); items = s.select(sel)
     hit = [it for it in items if instruction and instruction.strip() and instruction in it.get_text(" ",strip=True)]
@@ -887,13 +885,15 @@ def get_html(driver, cutlist=False, maxchars=28000, instruction=""):
     return str(s)[:maxchars]
 
 def execute_js_rich(script, driver):
-    start_temp_monitor(driver) 
+    try: start_temp_monitor(driver)
+    except: pass
     curr_session = driver.default_session_id
-    last_html = get_html(driver)
+    try: last_html = get_html(driver)
+    except: last_html = None
     result = None;  error_msg = None
     new_tab = False;  reloaded = False
     try:
-        print(f"⚡ Executing: {script[:250]} ...")
+        print(f"Executing: {script[:250]} ...")
         result = driver.execute_js(script, auto_switch_newtab=True)
         if type(result) is dict and result.get('closed', 0) == 1: reloaded = True
         time.sleep(2) 
@@ -901,10 +901,9 @@ def execute_js_rich(script, driver):
         error = e.args[0] if e.args else str(e)
         if isinstance(error, dict): error.pop('stack', None)
         error_msg = str(error)
-        print(f"❌ Error: {error_msg}")
+        print(f"Error: {error_msg}")
 
     if driver.default_session_id != curr_session:
-        curr_session = driver.latest_session_id
         print('Session changed')
         new_tab = True
     rr = {
@@ -917,20 +916,23 @@ def execute_js_rich(script, driver):
     }  
     if error_msg: rr['error'] = error_msg
     if not reloaded:
-        transients = get_temp_texts(driver)
-        rr['transients'] = transients
+        try: rr['transients'] = get_temp_texts(driver)
+        except: rr['transients'] = []
     if not reloaded and not new_tab:
-        current_html = get_html(driver)   
-        diff_summary = "无需对比 (报错)"
-        is_significant_change = False
-        if not error_msg:
+        try:
+            current_html = get_html(driver)
+            if last_html is None: raise Exception("no baseline")
             diff_data = find_changed_elements(last_html, current_html)
             change_count = diff_data.get('changed', 0)
             diff_summary = f"DOM变化量: {change_count}"
+            transients = rr.get('transients', [])
             if change_count < 5 and not transients and not new_tab:
                 diff_summary += " (页面几乎无静默变化)"
+                rr['suggestion'] = "页面无明显变化"
             else:
-                is_significant_change = True
+                rr['suggestion'] = ""
+        except:
+            diff_summary = "页面变化监控不可用"
+            rr['suggestion'] = ""
         rr['diff'] = diff_summary
-        rr['suggestion'] = "" if is_significant_change else "页面无明显变化"
     return rr

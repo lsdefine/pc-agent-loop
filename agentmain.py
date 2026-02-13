@@ -1,7 +1,8 @@
-import os, sys, threading, queue
-import time, json, re
+import os, sys, threading, queue, time, json, re
 if sys.stdout is None: sys.stdout = open(os.devnull, "w")
+elif hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(errors='replace')
 if sys.stderr is None: sys.stderr = open(os.devnull, "w")
+elif hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(errors='replace')
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from sidercall import SiderLLMSession, LLMSession, ToolClient, ClaudeSession
