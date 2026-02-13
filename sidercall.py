@@ -82,8 +82,7 @@ class ClaudeSession:
                 messages = self.make_messages(self.raw_msgs)
             for chunk in self.raw_ask(messages, model):
                 content += chunk; yield chunk
-            if not content.startswith("Error:"):
-                self.raw_msgs.append({"role": "assistant", "prompt": content})
+            if not content.startswith("Error:"): self.raw_msgs.append({"role": "assistant", "prompt": content})
         return _ask_gen() if stream else ''.join(list(_ask_gen()))
 
 class LLMSession:
@@ -110,13 +109,11 @@ class LLMSession:
                     if not line or not line.startswith("data:"): continue
                     data = line[5:].lstrip()
                     if data == "[DONE]": break
-                    obj = json.loads(data)
-                    ch = (obj.get("choices") or [{}])[0]
+                    obj = json.loads(data); ch = (obj.get("choices") or [{}])[0]
                     finish_reason = ch.get("finish_reason")
                     delta = (ch.get("delta") or {}).get("content")
                     if delta:
-                        yield delta
-                        buffer += delta
+                        yield delta; buffer += delta
                         if '</tool_use>' in buffer[-30:]: break
                     if finish_reason: break
         except Exception as e:
@@ -124,15 +121,23 @@ class LLMSession:
 
     def make_messages(self, raw_list, omit_images=True):
         messages = []
-        for msg in raw_list:
-            if omit_images and msg['image']:
-                messages.append({"role": msg['role'], "content": "[Image omitted, if you needed it, ask me]\n" + msg['prompt']})
+        for i, msg in enumerate(raw_list):
+            if i < len(raw_list) - 4 and 'orig' not in msg:
+                msg['orig'] = msg['prompt']
+                for tag in ('thinking', 'tool_use', 'tool_result'):
+                    msg['prompt'] = re.sub(
+                        rf'(<{tag}>)([\s\S]*?)(</{tag}>)',
+                        lambda m: m.group(1) + (m.group(2)[:200] + '...') + m.group(3) if len(m.group(2)) > 200 else m.group(0),
+                        msg['prompt']
+                    )
+            prompt = msg['prompt']
+            if omit_images and msg['image']: messages.append({"role": msg['role'], "content": "[Image omitted, if you needed it, ask me]\n" + prompt})
             elif not omit_images and msg['image']:
                 messages.append({"role": msg['role'], "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{msg['image']}"}},
-                    {"type": "text", "text": msg['prompt']} ]})
+                    {"type": "text", "text": prompt} ]})
             else:
-                messages.append({"role": msg['role'], "content": msg['prompt']})
+                messages.append({"role": msg['role'], "content": prompt})
         return messages
        
     def summary_history(self, model=None):
@@ -210,7 +215,6 @@ class GeminiSession:
 class MockFunction:
     def __init__(self, name, arguments): self.name, self.arguments = name, arguments  
          
-
 class MockToolCall:
     def __init__(self, name, args):
         arg_str = json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else args
@@ -254,7 +258,6 @@ class ToolClient:
     def _build_protocol_prompt(self, messages, tools):
         system_content = next((m['content'] for m in messages if m['role'].lower() == 'system'), "")
         history_msgs = [m for m in messages if m['role'].lower() != 'system']
-        
         # 构造工具描述
         tool_instruction = ""
         if tools:
