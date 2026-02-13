@@ -22,3 +22,9 @@ claude_config = {
     'apibase':"http://233.145.139.147:3001/",
     'model':"claude-opus"
 }
+
+# If you need them
+# tg_bot_token = '84102K2gYZ...'
+# tg_allowed_users = [6806...]
+
+# proxy = "http://127.0.0.1:2082"

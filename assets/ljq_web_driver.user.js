@@ -366,6 +366,7 @@
         ws.onmessage = async function(e) {
             try {
                 let data = JSON.parse(e.data);
+                ws.send(JSON.stringify({type: 'ack',id: data.id}));
                 let startTime = Date.now();
                 let newTabs = [];
                 let checkNewTab = data.auto_switch_newtab === true;

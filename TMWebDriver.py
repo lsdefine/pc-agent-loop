@@ -34,11 +34,8 @@ class Session:
 
 class TMWebDriver:  
     def __init__(self, host: str = 'localhost', port: int = 18765):  
-        self.host = host  
-        self.port = port  
-        self.sessions = {}
-        self.results = {}
-
+        self.host, self.port = host, port
+        self.sessions, self.results, self.acks = {}, {}, {}
         self.default_session_id = None  
         self.latest_session_id = None  
         self.last_cmd_time = 0
@@ -67,7 +64,11 @@ class TMWebDriver:
             else: return json.dumps({"id": "", "ret": "use ws"})
             start_time = time.time()
             while time.time() - start_time < 5:
-                try: return msgQ.get(timeout=0.2)
+                try:
+                    msg = msgQ.get(timeout=0.2)
+                    try: self.acks[json.loads(msg).get('id','')] = True
+                    except: pass
+                    return msg
                 except queue.Empty: continue
             return json.dumps({"id": "", "ret": "next long-poll"})
 
@@ -100,13 +101,11 @@ class TMWebDriver:
                 except Exception as e:
                     return json.dumps({'error': str(e)}, ensure_ascii=False)
             return 'ok'
-
         def run(): 
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             bottle.run(app, host=self.host, port=self.port+1, server='tornado', threads=20)
-
         http_thread = threading.Thread(target=run)  
         http_thread.daemon = True  
         http_thread.start()  
@@ -129,7 +128,8 @@ class TMWebDriver:
                         session_info = {'url': data.get('url'), 'title': data.get('title', ''),
                             'connected_at': time.time(), 'type': 'ws'}  
                         driver._register_client(session_id, self, session_info)  
-                    elif data.get('type') in 'result':  
+                    elif data.get('type') == 'ack': driver.acks[data.get('id','')] = True
+                    elif data.get('type') == 'result':  
                         driver.results[data.get('id')] = {'success': True, 'data': data.get('result'), 'newTabs': data.get('newTabs', [])}  
                     elif data.get('type') == 'error':  
                         driver.results[data.get('id')] = {'success': False, 'data': data.get('error')}  
@@ -199,7 +199,6 @@ class TMWebDriver:
                     print(f"会话 {session_id} 未连接，自动切换到最新活动会话: {session.id}")
                     session_id = self.default_session_id = session.id
                 if not session or not session.is_active(): 
-                    #breakpoint()
                     raise ValueError(f"会话ID {session_id} 未连接")  
 
         tp = session.type
@@ -214,10 +213,12 @@ class TMWebDriver:
 
         start_time = time.time()  
         self.clean_sessions() 
-        hasjump = False
+        hasjump = acked = False
 
         while exec_id not in self.results:  
             time.sleep(0.1)  
+            if not acked and exec_id in self.acks:
+                acked = True; start_time = time.time()
             if tp == 'ws':
                 if not session.is_active(): hasjump = True
                 if hasjump and session.is_active():
@@ -226,11 +227,14 @@ class TMWebDriver:
             if time.time() - start_time > timeout:  
                 if tp == 'ws':
                     if hasjump: return {"result": f"Session {session_id} reloaded and new page is loading...", "closed":1}
-                    return {"result": f"No response data in {timeout}s"}
+                    if acked: return {"result": f"No response data in {timeout}s (ACK received, script may still be running)"}
+                    return {"result": f"No response data in {timeout}s (no ACK, script may not have been delivered)"}
                 elif tp == 'http':
-                    return {"result": f"Session {session_id} no response."}
+                    if acked: return {"result": f"Session {session_id} no response in {timeout}s (delivered but no result)"}
+                    return {"result": f"Session {session_id} no response in {timeout}s (script not polled)"}
         
         result = self.results.pop(exec_id)  
+        if exec_id in self.acks: self.acks.pop(exec_id)
         if not result['success']: raise Exception(result['data'])  
         if not self.is_remote and auto_switch_newtab:
             newtabs = result.get('newTabs', [])

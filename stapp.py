@@ -23,8 +23,7 @@ agent = init()
 
 st.title("🖥️ Cowork")
 
-if 'autonomous_enabled' not in st.session_state:
-    st.session_state.autonomous_enabled = False
+if 'autonomous_enabled' not in st.session_state: st.session_state.autonomous_enabled = False
 
 @st.fragment
 def render_sidebar():

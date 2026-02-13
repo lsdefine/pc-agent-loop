@@ -89,10 +89,9 @@ if __name__ == '__main__':
     try:
         _lock_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); _lock_sock.bind(('127.0.0.1', 19527))
     except OSError: sys.exit('Another instance is already running.')
-    if not ALLOWED:
-        sys.exit('ERROR: tg_allowed_users in mykey.py is empty or missing. Set it to avoid unauthorized access.')
+    if not ALLOWED: sys.exit('ERROR: tg_allowed_users in mykey.py is empty or missing. Set it to avoid unauthorized access.')
     threading.Thread(target=agent.run, daemon=True).start()
-    proxy = vars(mykey).get('proxy', '127.0.0.1:2082')
+    proxy = vars(mykey).get('proxy', 'http://127.0.0.1:2082')
     app = ApplicationBuilder().token(mykey.tg_bot_token).proxy(proxy).get_updates_proxy(proxy).build()
     app.add_handler(CommandHandler("stop", cmd_abort))
     app.add_handler(CommandHandler("llm", cmd_llm))
