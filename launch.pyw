@@ -79,6 +79,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('port', nargs='?', default='8501')
     parser.add_argument('--no-tg', action='store_true', help='不启动 Telegram Bot')
+    parser.add_argument('--no-scheduler', action='store_true', help='不启动计划任务调度器')
     args = parser.parse_args()
     port = args.port
     t = threading.Thread(target=start_streamlit, args=(port,), daemon=True)
@@ -89,6 +90,12 @@ if __name__ == '__main__':
         atexit.register(tgproc.kill)
         print('[Launch] Telegram Bot started')
     else: print('[Launch] Telegram Bot disabled (--no-tg)')
+    
+    if not args.no_scheduler:
+        scheduler_proc = subprocess.Popen([sys.executable, "agentmain.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+        atexit.register(scheduler_proc.kill)
+        print('[Launch] Task Scheduler started')
+    else: print('[Launch] Task Scheduler disabled (--no-scheduler)')
 
     monitor_thread = threading.Thread(target=idle_monitor, daemon=True)
     monitor_thread.start()

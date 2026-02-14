@@ -110,8 +110,33 @@ class GeneraticAgent:
                 if self.handler is not None: self.handler.code_stop_signal.append(1)
 
     
+def acquire_singleton_lock():
+    """确保只有一个调度器实例运行"""
+    lock_file = './temp/scheduler.lock'
+    os.makedirs('./temp', exist_ok=True)
+    
+    if os.name == 'nt':  # Windows
+        import msvcrt
+        try:
+            lock_fd = open(lock_file, 'w')
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+            return lock_fd
+        except:
+            print('[Scheduler] Another instance is already running')
+            sys.exit(0)
+    else:  # Unix/Linux
+        import fcntl
+        try:
+            lock_fd = open(lock_file, 'w')
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_fd
+        except:
+            print('[Scheduler] Another instance is already running')
+            sys.exit(0)
+
 if __name__ == '__main__':
     from datetime import datetime
+    lock_fd = acquire_singleton_lock()  # 获取单例锁
     agent = GeneraticAgent()
     threading.Thread(target=agent.run, daemon=True).start()
     def drain(dq, tag):
