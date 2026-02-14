@@ -92,9 +92,19 @@ if __name__ == '__main__':
     else: print('[Launch] Telegram Bot disabled (--no-tg)')
     
     if not args.no_scheduler:
-        scheduler_proc = subprocess.Popen([sys.executable, "agentmain.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
-        atexit.register(scheduler_proc.kill)
-        print('[Launch] Task Scheduler started')
+        # 使用假端口检测单例
+        import socket
+        scheduler_port = 65432
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(('127.0.0.1', scheduler_port))
+            sock.listen(1)
+            # 绑定成功，启动调度器
+            scheduler_proc = subprocess.Popen([sys.executable, "agentmain.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+            atexit.register(lambda: (scheduler_proc.kill(), sock.close()))
+            print('[Launch] Task Scheduler started')
+        except OSError:
+            print('[Launch] Task Scheduler already running (port occupied)')
     else: print('[Launch] Task Scheduler disabled (--no-scheduler)')
 
     monitor_thread = threading.Thread(target=idle_monitor, daemon=True)
