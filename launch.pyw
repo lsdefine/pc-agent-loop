@@ -1,41 +1,23 @@
-import webview
-import threading
-import subprocess
-import sys, time, os, ctypes
-import atexit
+import webview, threading, subprocess, sys, time, os, ctypes, atexit, socket
 
-# === 配置区域 ===
-WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 900
-RIGHT_PADDING = 0  # 离屏幕右边缘的距离
-TOP_PADDING = 300    # 离屏幕上边缘的距离
+WINDOW_WIDTH, WINDOW_HEIGHT, RIGHT_PADDING, TOP_PADDING = 600, 900, 0, 300
 
 def get_screen_width():
-    try:
-        user32 = ctypes.windll.user32
-        return user32.GetSystemMetrics(0)
+    try: return ctypes.windll.user32.GetSystemMetrics(0)
     except: return 1920
 
 def start_streamlit(port):
     global proc
-    cmd = [
-        sys.executable, "-m", "streamlit", "run", "stapp.py",
-        "--server.port", str(port),
-        "--server.headless", "true",
-        "--theme.base", "dark" #以此默认开启暗黑模式，更有极客感
-    ]
+    cmd = [sys.executable, "-m", "streamlit", "run", "stapp.py", "--server.port", str(port), "--server.headless", "true", "--theme.base", "dark"]  # 暗黑模式
     proc = subprocess.Popen(cmd)
     atexit.register(proc.kill)
-
 
 def inject(text):
     window.evaluate_js(f"""
         const textarea = document.querySelector('textarea[data-testid="stChatInputTextArea"]');
         if (textarea) {{
             // 1. 用原生 setter 设置值（绕过 React）
-            const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
-                window.HTMLTextAreaElement.prototype, 'value'
-            ).set;
+            const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
             nativeTextAreaValueSetter.call(textarea, {repr(text)});
             // 2. 触发 React 的 input 事件
             textarea.dispatchEvent(new Event('input', {{ bubbles: true }}));
@@ -44,13 +26,9 @@ def inject(text):
             // 4. 延迟提交
             setTimeout(() => {{
                 const btn = document.querySelector('[data-testid="stChatInputSubmitButton"]');
-                if (btn) {{
-                    btn.click();
-                    console.log('Submitted:', {repr(text)});
-                }}
+                if (btn) {{btn.click();console.log('Submitted:', {repr(text)});}}
             }}, 200);
-        }}
-    """)
+        }}""")
 
 def get_last_reply_time():
     last = window.evaluate_js("""
@@ -77,13 +55,12 @@ def idle_monitor():
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('port', nargs='?', default='8501')
-    parser.add_argument('--no-tg', action='store_true', help='不启动 Telegram Bot')
-    parser.add_argument('--no-scheduler', action='store_true', help='不启动计划任务调度器')
+    parser.add_argument('port', nargs='?', default='8501'); 
+    parser.add_argument('--no-tg', action='store_true', help='不启动 Telegram Bot'); 
+    parser.add_argument('--no-sched', action='store_true', help='不启动计划任务调度器')
     args = parser.parse_args()
     port = args.port
-    t = threading.Thread(target=start_streamlit, args=(port,), daemon=True)
-    t.start()
+    threading.Thread(target=start_streamlit, args=(port,), daemon=True).start()
 
     if not args.no_tg:
         tgproc = subprocess.Popen([sys.executable, "tgapp.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
@@ -91,21 +68,15 @@ if __name__ == '__main__':
         print('[Launch] Telegram Bot started')
     else: print('[Launch] Telegram Bot disabled (--no-tg)')
     
-    if not args.no_scheduler:
-        # 使用假端口检测单例
-        import socket
-        scheduler_port = 65432
+    if not args.no_sched:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('127.0.0.1', scheduler_port))
-            sock.listen(1)
-            # 绑定成功，启动调度器
-            scheduler_proc = subprocess.Popen([sys.executable, "agentmain.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); sock.bind(('127.0.0.1', 45762)); sock.listen(1)
+            scheduler_proc = subprocess.Popen([sys.executable, "agentmain.py"], creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0); 
             atexit.register(lambda: (scheduler_proc.kill(), sock.close()))
             print('[Launch] Task Scheduler started')
         except OSError:
             print('[Launch] Task Scheduler already running (port occupied)')
-    else: print('[Launch] Task Scheduler disabled (--no-scheduler)')
+    else: print('[Launch] Task Scheduler disabled (--no-sched)')
 
     monitor_thread = threading.Thread(target=idle_monitor, daemon=True)
     monitor_thread.start()
@@ -115,10 +86,7 @@ if __name__ == '__main__':
     else: x_pos = 100
     time.sleep(2) 
     window = webview.create_window(
-        title='GenericAgent', 
-        url=f'http://localhost:{port}',
-        width=WINDOW_WIDTH, height=WINDOW_HEIGHT,
-        x=x_pos, y=TOP_PADDING,
-        resizable=True, text_select=True
-    )
+        title='GenericAgent', url=f'http://localhost:{port}',
+        width=WINDOW_WIDTH, height=WINDOW_HEIGHT, x=x_pos, y=TOP_PADDING,
+        resizable=True, text_select=True)
     webview.start()
