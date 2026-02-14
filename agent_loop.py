@@ -26,7 +26,7 @@ class BaseHandler:
         elif tool_name == 'bad_json':
             return StepOutcome(None, next_prompt=args.get('msg', 'bad_json'), should_exit=False)
         else:
-            yield f"❌ 未知工具: {tool_name}\n"
+            yield f"未知工具: {tool_name}\n"
             return StepOutcome(None, next_prompt=f"未知工具 {tool_name}", should_exit=False)
 
 def json_default(o):

@@ -33,6 +33,9 @@ auth.json
 # 忽略模型响应记录
 model_responses.txt
 
+# 任务调度目录
+tasks/
+
 *.zip
 
 # 存储敏感信息的记忆文件夹（除了公开的 SOP）
@@ -42,6 +45,7 @@ memory/*
 # Allow tracking of specific SOPs
 !memory/web_setup_sop.md
 !memory/autonomous_operation_sop.md
+!memory/scheduled_task_sop.md
 
 # ljqCtrl related tools
 !memory/ljqCtrl.py

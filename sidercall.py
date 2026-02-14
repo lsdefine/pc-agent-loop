@@ -28,7 +28,7 @@ class SiderLLMSession:
         return full_text   
 
 class ClaudeSession:
-    def __init__(self, api_key, api_base, model="claude-opus", context_win=12000):
+    def __init__(self, api_key, api_base, model="claude-opus", context_win=10000):
         self.api_key, self.api_base, self.default_model, self.context_win = api_key, api_base.rstrip('/'), model, context_win
         self.raw_msgs, self.lock = [], threading.Lock()
     def _trim_messages(self, messages):

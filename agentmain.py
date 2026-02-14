@@ -1,4 +1,4 @@
-import os, sys, threading, queue, time, json, re
+import os, sys, threading, queue, time, json, re, random
 if sys.stdout is None: sys.stdout = open(os.devnull, "w")
 elif hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(errors='replace')
 if sys.stderr is None: sys.stderr = open(os.devnull, "w")
@@ -110,3 +110,23 @@ class GeneraticAgent:
                 if self.handler is not None: self.handler.code_stop_signal.append(1)
 
     
+if __name__ == '__main__':
+    from datetime import datetime
+    agent = GeneraticAgent()
+    threading.Thread(target=agent.run, daemon=True).start()
+    def drain(dq, tag):
+        while True:
+            item = dq.get(); txt = item.get('done') or item.get('next', '')
+            open('./temp/scheduler_live.log', 'w', encoding='utf-8').write(txt)
+            if 'done' in item: break
+        open('./temp/scheduler.log', 'a', encoding='utf-8').write(f'[{datetime.now():%m-%d %H:%M}] {tag}\n{txt}\n\n')
+    while True:
+        now = datetime.now()
+        for f in os.listdir('./tasks/pending'):
+            m = re.match(r'(\d{4}-\d{2}-\d{2})_(\d{4})_', f)
+            if m and now >= datetime.strptime(f'{m[1]} {m[2]}', '%Y-%m-%d %H%M'):
+                raw = open(f'./tasks/pending/{f}', encoding='utf-8').read()
+                dq = agent.put_task(f'按scheduled_task_sop执行任务文件 ./tasks/pending/{f}（立刻移到running）\n内容：\n{raw}', source='scheduler')
+                threading.Thread(target=drain, args=(dq, f), daemon=True).start()
+                break
+        time.sleep(55 + random.random() * 10)
