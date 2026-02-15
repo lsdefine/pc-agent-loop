@@ -106,10 +106,10 @@ def first_init_driver():
         driver.newtab()
         time.sleep(5)
 
-def web_scan(focus_item="", switch_tab_id=None):
+def web_scan(tabs_only=False, switch_tab_id=None):
     """
-    利用 get_html 获取清洗后的网页内容。
-    focus_item: 语义过滤指令。如果用户在找特定内容（如“小米汽车”），算法会优先保留包含该关键词的列表项。
+    获取当前页面的简化HTML内容和标签页列表。注意：简化过程会过滤边栏、浮动元素等非主体内容。
+    tabs_only: 仅返回标签页列表，不获取HTML内容（节省token）。
     switch_tab_id: 可选参数，如果提供，则在扫描前切换到该标签页。
     应当多用execute_js，少全量观察html。
     """
@@ -125,16 +125,16 @@ def web_scan(focus_item="", switch_tab_id=None):
             sess['url'] = sess.get('url', '')[:50] + ("..." if len(sess.get('url', '')) > 50 else "")
             tabs.append(sess)
         if switch_tab_id: driver.default_session_id = switch_tab_id
-        content = get_html(driver, cutlist=True, instruction=focus_item, maxchars=23000)
-        return {
+        result = {
             "status": "success",
             "metadata": {
                 "tabs_count": len(tabs),
                 "tabs": tabs,
                 "active_tab": driver.default_session_id
-            },
-            "content": content
+            }
         }
+        if not tabs_only: result["content"] = get_html(driver, cutlist=True, maxchars=23000)
+        return result
     except Exception as e:
         return {"status": "error", "msg": format_error(e)}
     
@@ -278,15 +278,17 @@ class GenericAgentHandler(BaseHandler):
         return StepOutcome(result, next_prompt="", should_exit=True)
     
     def do_web_scan(self, args, response):
-        '''focus_item仅用于在长列表中模糊搜寻相关item
-        此工具也提供标签页查看和标签页切换功能。
+        '''获取当前页面内容和标签页列表。也可用于切换标签页。
+        注意：HTML经过简化，边栏/浮动元素等可能被过滤。如需查看被过滤的内容请用execute_js。
+        tabs_only=true时仅返回标签页列表，不获取HTML（省token）。
         '''
-        focus_item = args.get("focus_item", "")
+        tabs_only = args.get("tabs_only", False)
         switch_tab_id = args.get("switch_tab_id", None)
-        result = web_scan(focus_item, switch_tab_id=switch_tab_id)
-        content = result.pop("content", None) 
+        result = web_scan(tabs_only=tabs_only, switch_tab_id=switch_tab_id)
+        content = result.pop("content", None)
         yield f'[Info] {str(result)}\n'
-        next_prompt = f"```html\n{content}\n```"
+        if content: next_prompt = f"```html\n{content}\n```"
+        else: next_prompt = "标签页列表如上\n"
         return StepOutcome(result, next_prompt=next_prompt)
     
     def do_web_execute_js(self, args, response):

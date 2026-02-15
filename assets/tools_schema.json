@@ -34,9 +34,9 @@
   }},
   {"type": "function", "function": {
     "name": "web_scan",
-    "description": "获取当前网页的清洗后内容，并列出所有已打开的标签页。支持切换标签页。切换页面后一般应先调用查看。",
+    "description": "获取当前页面的简化HTML内容和标签页列表。注意：简化会过滤边栏、浮动元素等非主体内容，如需查看被过滤内容请用execute_js。切换页面后一般应先调用查看。",
     "parameters": {"type": "object", "properties": {
-      "focus_item": {"type": "string", "description": "语义过滤指令，用于在长列表中优先保留与该关键词相关的项。"},
+      "tabs_only": {"type": "boolean", "description": "仅返回标签页列表和当前标签信息，不获取HTML内容。", "default": false},
       "switch_tab_id": {"type": "string", "description": "可选的标签页 ID。如果提供，系统将在扫描前切换到该标签页。"}}}
   }},
   {"type": "function", "function": {
