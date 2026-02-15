@@ -1,4 +1,4 @@
-import os, sys, re, threading, asyncio, queue as Q, socket
+import os, sys, re, threading, asyncio, queue as Q, socket, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from agentmain import GeneraticAgent
 from telegram import Update
@@ -90,11 +90,19 @@ if __name__ == '__main__':
         _lock_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); _lock_sock.bind(('127.0.0.1', 19527))
     except OSError: sys.exit('Another instance is already running.')
     if not ALLOWED: sys.exit('ERROR: tg_allowed_users in mykey.py is empty or missing. Set it to avoid unauthorized access.')
+    _logf = open(os.path.join(os.path.dirname(__file__), 'temp', 'tgapp.log'), 'a', encoding='utf-8', buffering=1)
+    sys.stdout = sys.stderr = _logf
     threading.Thread(target=agent.run, daemon=True).start()
     proxy = vars(mykey).get('proxy', 'http://127.0.0.1:2082')
+    print('proxy:', proxy)
     app = ApplicationBuilder().token(mykey.tg_bot_token).proxy(proxy).get_updates_proxy(proxy).build()
     app.add_handler(CommandHandler("stop", cmd_abort))
     app.add_handler(CommandHandler("llm", cmd_llm))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
-    print("TG bot running...")
-    app.run_polling()
+    print(f"TG bot starting... {time.strftime('%m-%d %H:%M')}")
+    while True:
+        try:
+            app.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            print(f"[{time.strftime('%m-%d %H:%M')}] polling crashed: {e}", flush=True)
+            time.sleep(10)

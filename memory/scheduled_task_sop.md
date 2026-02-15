@@ -9,3 +9,5 @@
 3. 读文件执行
 4. 完成→移到done/，**在文件内追加执行报告**供用户查阅
 5. schedule非once→算下次时间，新建文件到pending/
+
+注意tasks目录在../，即你的code root下
